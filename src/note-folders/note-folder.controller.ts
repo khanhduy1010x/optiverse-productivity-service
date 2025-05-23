@@ -20,5 +20,65 @@ import { UserDto } from 'src/user-dto/user.dto';
 @ApiBearerAuth('access-token')
 @Controller('/note-folder')
 export class NoteFolderController {
-  
+  constructor(private readonly noteFolderService: NoteFolderService) {}
+
+  @Get('root')
+  async getNoteFoldersByUserID(@Request() req): Promise<ApiResponse<NoteFolder[]>> {
+    const user = req.user as UserDto;
+    const noteFolders = await this.noteFolderService.getNoteFoldersByUserID(user.userId);
+    return new ApiResponse<NoteFolder[]>(noteFolders);
+  }
+
+  @Get('/:id')
+  async getNoteFolderById(@Param('id') folderId: string): Promise<ApiResponse<NoteFolder>> {
+    const noteFolder = await this.noteFolderService.getFolderById(folderId);
+    return new ApiResponse<NoteFolder>(noteFolder);
+  }
+
+  @ApiBody({ type: CreateNoteFolderRequest })
+  @Post('')
+  async createNoteFolder(
+    @Request() req,
+    @Body() createNoteFolderDto: CreateNoteFolderRequest,
+  ): Promise<ApiResponse<NoteFolderResponse>> {
+    const user = req.user as UserDto;
+    const noteFolder = await this.noteFolderService.createNoteFolder(
+      createNoteFolderDto,
+      user.userId,
+    );
+    return new ApiResponse<NoteFolderResponse>(noteFolder);
+  }
+
+  @ApiParam({
+    name: 'id',
+    type: String,
+  })
+  @ApiBody({ type: UpdateNoteFolderRequest })
+  @Patch('/:id')
+  async updateNoteFolder(
+    @Param('id') noteFolderId: string,
+    @Body() updateNoteFolderDto: UpdateNoteFolderRequest,
+  ): Promise<ApiResponse<NoteFolderResponse>> {
+    const noteFolder = await this.noteFolderService.updateNoteFolder(
+      noteFolderId,
+      updateNoteFolderDto,
+    );
+    return new ApiResponse<NoteFolderResponse>(noteFolder);
+  }
+
+  @ApiParam({
+    name: 'id',
+    type: String,
+  })
+  @Delete('/:id')
+  async deleteNoteFolder(@Param('id') noteFolderId: string): Promise<ApiResponse<void>> {
+    const result = await this.noteFolderService.deleteNoteFolder(noteFolderId);
+    return new ApiResponse<void>(null);
+  }
+  @Get('/root/retrive')
+  async retriveAllRootFolder(@Request() req): Promise<ApiResponse<NoteFolder[]>> {
+    const user = req.user as UserDto;
+    const noteFolders = await this.noteFolderService.retrieveAllFolderInRoot(user.userId);
+    return new ApiResponse<NoteFolder[]>(noteFolders);
+  }
 }
