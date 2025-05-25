@@ -28,7 +28,65 @@ export class ReviewSessionService {
 
     return new ReviewSessionResponse(newReviewFlashcard);
   }
+  async reviewFlashcard(
+    userId: string,
+    dto: ReviewRequestDto,
+  ): Promise<ReviewSessionResponse | null> {
+    const existing = await this.reviewSessionRepository.findByUserAndFlashcard(
+      userId,
+      dto.flashcard_id,
+    );
+    const now = new Date();
 
+    const session = existing ?? {
+      flashcard_id: new Types.ObjectId(dto.flashcard_id),
+      user_id: new Types.ObjectId(userId),
+      last_review: now,
+      next_review: now,
+      interval: 0,
+      ease_factor: 2.5,
+      repetition_count: 0,
+      quality: dto.quality,
+    };
+
+    const q = dto.quality;
+    const EF_MIN = 1.3;
+
+    if (q === 0) {
+      session.repetition_count = 0;
+      session.interval = 0;
+    } else {
+      session.repetition_count += 1;
+
+      if (session.repetition_count === 1) session.interval = 1;
+      else if (session.repetition_count === 2) session.interval = 6;
+      else session.interval = Math.round(session.interval * session.ease_factor);
+
+      session.ease_factor += 0.1 - (3 - q) * (0.05 + (3 - q) * 0.02);
+      if (session.ease_factor < EF_MIN) session.ease_factor = EF_MIN;
+    }
+
+    session.last_review = now;
+    const millisecondsUntilNextReview =
+      session.interval === 0 ? 1 * 60 * 1000 : session.interval * 24 * 60 * 60 * 1000;
+
+    session.next_review = new Date(now.getTime() + millisecondsUntilNextReview);
+
+    session.quality = q;
+
+    const saved = existing
+      ? await this.reviewSessionRepository.updateByUserAndFlashcard(
+          userId,
+          dto.flashcard_id,
+          session,
+        )
+      : await this.reviewSessionRepository.createReviewSession(session);
+
+    return new ReviewSessionResponse(saved);
+  }
+  async getReviewSessionsByUserID(userId: string): Promise<ReviewSession[]> {
+    return await this.reviewSessionRepository.getReviewSessionsByUserID(userId);
+  }
   async deleteReviewSessionByFlashcardId(flashcardId: string): Promise<void> {
     await this.reviewSessionRepository.deleteReviewSessionByFlashcardId(flashcardId);
   }
