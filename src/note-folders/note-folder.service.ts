@@ -1,17 +1,19 @@
 import { Injectable } from '@nestjs/common';
 import { NoteFolderRepository } from './note-folder.repository';
-import { NoteFolder, NoteFolderTree } from './note-folder.schema';
+import { NoteFolder, NoteFolderTree, NoteWithType, RootItem } from './note-folder.schema';
 import { CreateNoteFolderRequest } from './dto/request/CreateNoteFolderRequest.dto';
 import { UpdateNoteFolderRequest } from './dto/request/UpdateNoteFolderRequest.dto';
 import { NoteFolderResponse } from './dto/response/NoteFolderResponse.dto';
 import { NoteRepository } from '../notes/note.repository';
 import { NoteService } from '../notes/note.service';
+import { Note } from 'src/notes/note.schema';
 
 @Injectable()
 export class NoteFolderService {
   constructor(
     private readonly noteFolderRepository: NoteFolderRepository,
     private readonly noteService: NoteService,
+    private readonly noteRepository: NoteRepository,
   ) {}
 
   async getFolderById(folderId: string): Promise<NoteFolderTree | null> {
@@ -114,4 +116,55 @@ export class NoteFolderService {
     }
     return folderTrees;
   }
+
+async retrieveAllFolderInRootforWeb(user_id: string): Promise<RootItem[]> {
+  const allFolders = await this.noteFolderRepository.getNoteFoldersByUserID(user_id);
+  const allSubfolders: NoteFolder[] = [];
+  if (allFolders && allFolders.length > 0) {
+    for (const root of allFolders) {
+      const subfolders = await this.noteFolderRepository.getAllSubfolders(root._id.toString());
+      allSubfolders.push(...subfolders);
+    }
+  }
+    const rootNotes = await this.noteRepository.getNoteInRootByUserID(user_id);
+  const result: RootItem[] = [];
+  const folderTrees = this.buildFolderTreesForWeb([...allFolders, ...allSubfolders]);
+  result.push(...folderTrees);
+
+  if (rootNotes && rootNotes.length > 0) {
+    const notesWithType: NoteWithType[] = rootNotes.map((note) => ({
+      ...note,
+      type: 'file' as const,
+    }));
+    result.push(...notesWithType);
+  }
+
+  return result.length > 0 ? result : [];
+}
+
+ private buildFolderTreesForWeb(flatList: NoteFolder[]): NoteFolderTree[] {
+  const folderMap: Map<string, NoteFolderTree> = new Map();
+  const roots: NoteFolderTree[] = [];
+
+  flatList.forEach((folder) => {
+    const folderTree: NoteFolderTree = {
+      ...folder,
+      subfolders: [],
+      type: 'folder' as const,
+    };
+    folderMap.set(folder._id.toString(), folderTree);
+    if (!folder.parent_folder_id) {
+      roots.push(folderTree);
+    }
+  });
+  flatList.forEach((folder) => {
+    if (folder.parent_folder_id) {
+      const parent = folderMap.get(folder.parent_folder_id.toString());
+      if (parent) {
+        parent.subfolders.push(folderMap.get(folder._id.toString())!);
+      }
+    }
+  });
+  return roots;
+}
 }

@@ -9,6 +9,6 @@ import { NoteRepository } from './note.repository';
   imports: [MongooseModule.forFeature([{ name: Note.name, schema: NoteSchema }])],
   controllers: [NoteController],
   providers: [NoteService, NoteRepository],
-  exports: [NoteService],
+  exports: [NoteService,NoteRepository],
 })
 export class NoteModule {}

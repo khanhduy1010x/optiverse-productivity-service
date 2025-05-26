@@ -27,7 +27,7 @@ export class ReviewSessionController {
     @Req() req,
     @Body() dto: ReviewRequestDto,
   ): Promise<ApiResponse<ReviewSessionResponse>> {
-    const user = req.user as UserDto;
+    const user = req.userInfo as UserDto;
     const userId = user.userId;
     const result = await this.reviewSessionService.reviewFlashcard(userId, dto);
     return new ApiResponse(result);
@@ -37,7 +37,7 @@ export class ReviewSessionController {
   async getReviewSessionsByUserID(
     @Req() req,
   ): Promise<ApiResponse<ReviewSessionResponse[]>> {
-    const user = req.user as UserDto;
+    const user = req.userInfo as UserDto;
     const userId = user.userId;
     const sessions =
       await this.reviewSessionService.getReviewSessionsByUserID(userId);

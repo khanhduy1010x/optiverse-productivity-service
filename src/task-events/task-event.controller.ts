@@ -10,5 +10,34 @@ import { ApiBearerAuth } from '@nestjs/swagger';
 @ApiBearerAuth('access-token')
 @Controller('/task-event')
 export class TaskEventController {
-  
+  constructor(private readonly taskEventService: TaskEventService) {}
+
+  @Get('task/:taskId')
+  async getTaskEventsByTaskID(@Param('taskId') taskId: string): Promise<ApiResponse<TaskEvent[]>> {
+    const taskEvents = await this.taskEventService.getTaskEventsByTaskID(taskId);
+    return new ApiResponse<TaskEvent[]>(taskEvents);
+  }
+
+  @Post('create')
+  async createTaskEvent(
+    @Body() createTaskEventDto: CreateTaskEventRequest,
+  ): Promise<ApiResponse<TaskEventResponse>> {
+    const taskEvent = await this.taskEventService.createTaskEvent(createTaskEventDto);
+    return new ApiResponse<TaskEventResponse>(taskEvent);
+  }
+
+  @Put('update/:id')
+  async updateTaskEvent(
+    @Param('id') taskEventId: string,
+    @Body() updateTaskEventDto: UpdateTaskEventRequest,
+  ): Promise<ApiResponse<TaskEventResponse>> {
+    const taskEvent = await this.taskEventService.updateTaskEvent(taskEventId, updateTaskEventDto);
+    return new ApiResponse<TaskEventResponse>(taskEvent);
+  }
+
+  @Delete('delete/:id')
+  async deleteTaskEvent(@Param('id') taskEventId: string): Promise<ApiResponse<void>> {
+    await this.taskEventService.deleteTaskEvent(taskEventId);
+    return new ApiResponse<void>(null);
+  }
 }

@@ -26,8 +26,7 @@ export class FlashcardController {
     @Req() req,
     @Body() createFlashcardDto: CreateFlashcardRequest,
   ): Promise<ApiResponse<FlashcardResponse>> {
-    const user = req.user as UserDto;
-
+    const user = req.userInfo as UserDto;
     const flashcard = await this.flashcardService.createFlashcard(user.userId, createFlashcardDto);
     return new ApiResponse<FlashcardResponse>(flashcard);
   }

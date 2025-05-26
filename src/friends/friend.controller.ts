@@ -85,7 +85,7 @@ export class FriendController {
     @Request() req,
     @Param('friendId') friendId: string,
   ): Promise<ApiResponse<Friend>> {
-    const user = req.user as UserDto;
+    const user = req.userInfo as UserDto;
 
     const friend = await this.friendService.addFriend(user.userId, friendId);
     return new ApiResponse(friend);
@@ -103,7 +103,7 @@ export class FriendController {
 
   @Get('view-all/pending')
   async viewAllPending(@Request() req): Promise<ApiResponse<Friend[]>> {
-    const user = req.user as UserDto;
+    const user = req.userInfo as UserDto;
 
     const friends = await this.friendService.viewAllPending(user.userId.toString());
     return new ApiResponse(friends);

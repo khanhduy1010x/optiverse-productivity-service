@@ -24,7 +24,7 @@ export class NoteController {
 
   @Get('root')
   async getNotesByUserID(@Request() req): Promise<ApiResponse<Note[]>> {
-    const user = req.user as UserDto;
+    const user = req.userInfo as UserDto;
     const notes = await this.noteService.getNotesByUserId(user.userId);
     return new ApiResponse<Note[]>(notes);
   }
@@ -41,7 +41,7 @@ export class NoteController {
     @Request() req,
     @Body() createNoteDto: CreateNoteRequest,
   ): Promise<ApiResponse<NoteResponse>> {
-    const user = req.user as UserDto;
+    const user = req.userInfo as UserDto;
     const note = await this.noteService.createNote(createNoteDto, user.userId);
     return new ApiResponse<NoteResponse>(note);
   }

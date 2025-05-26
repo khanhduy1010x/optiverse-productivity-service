@@ -6,8 +6,12 @@ export type NoteFolderDocument = NoteFolder & Document;
 
 export interface NoteFolderTree extends NoteFolder {
   subfolders: NoteFolderTree[];
+  type?: 'folder';
 }
-
+export interface NoteWithType extends Note {
+  type: 'file';
+}
+export type RootItem = NoteFolderTree | NoteWithType;
 @Schema({ timestamps: true })
 export class NoteFolder {
   _id: mongoose.Types.ObjectId;

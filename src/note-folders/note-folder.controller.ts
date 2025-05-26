@@ -13,7 +13,7 @@ import { ApiResponse } from 'src/common/api-response';
 import { NoteFolderResponse } from './dto/response/NoteFolderResponse.dto';
 import { CreateNoteFolderRequest } from './dto/request/CreateNoteFolderRequest.dto';
 import { UpdateNoteFolderRequest } from './dto/request/UpdateNoteFolderRequest.dto';
-import { NoteFolder } from './note-folder.schema';
+import { NoteFolder, RootItem } from './note-folder.schema';
 import { ApiBearerAuth, ApiBody, ApiParam } from '@nestjs/swagger';
 import { UserDto } from 'src/user-dto/user.dto';
 
@@ -24,7 +24,7 @@ export class NoteFolderController {
 
   @Get('root')
   async getNoteFoldersByUserID(@Request() req): Promise<ApiResponse<NoteFolder[]>> {
-    const user = req.user as UserDto;
+    const user = req.userInfo as UserDto;
     const noteFolders = await this.noteFolderService.getNoteFoldersByUserID(user.userId);
     return new ApiResponse<NoteFolder[]>(noteFolders);
   }
@@ -41,7 +41,7 @@ export class NoteFolderController {
     @Request() req,
     @Body() createNoteFolderDto: CreateNoteFolderRequest,
   ): Promise<ApiResponse<NoteFolderResponse>> {
-    const user = req.user as UserDto;
+    const user = req.userInfo as UserDto;
     const noteFolder = await this.noteFolderService.createNoteFolder(
       createNoteFolderDto,
       user.userId,
@@ -77,8 +77,14 @@ export class NoteFolderController {
   }
   @Get('/root/retrive')
   async retriveAllRootFolder(@Request() req): Promise<ApiResponse<NoteFolder[]>> {
-    const user = req.user as UserDto;
+    const user = req.userInfo as UserDto;
     const noteFolders = await this.noteFolderService.retrieveAllFolderInRoot(user.userId);
     return new ApiResponse<NoteFolder[]>(noteFolders);
+  }
+   @Get('/root/retrive-web')
+  async retriveAllRootFolderForWeb(@Request() req): Promise<ApiResponse<RootItem[]>> {
+    const user = req.userInfo as UserDto;
+    const noteFolders = await this.noteFolderService.retrieveAllFolderInRootforWeb(user.userId);
+    return new ApiResponse<RootItem[]>(noteFolders);
   }
 }
