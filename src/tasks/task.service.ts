@@ -9,5 +9,32 @@ import { TaskTagService } from '../task-tags/task-tag.service';
 
 @Injectable()
 export class TaskService {
-  
+  constructor(
+    private readonly taskRepository: TaskRepository,
+    private readonly taskTagService: TaskTagService,
+  ) {}
+
+  async getAllTaskByID(id: string): Promise<GetAllTaskReponse> {
+    return await this.taskRepository.getAllTaskByID(id);
+  }
+  async getTaskByID(taskId: string): Promise<TaskResponse> {
+    const task = await this.taskRepository.getTaskByID(taskId);
+    return new TaskResponse(task);
+  }
+
+  async createTask(userId: string, createTaskDto: CreateTaskRequest): Promise<TaskResponse> {
+    const task = await this.taskRepository.createTask(userId, createTaskDto);
+    return new TaskResponse(task);
+  }
+
+  async updateTask(taskId: string, updateTaskDto: UpdateTaskRequest): Promise<TaskResponse> {
+    const task = await this.taskRepository.updateTask(taskId, updateTaskDto);
+    return new TaskResponse(task);
+  }
+
+  async deleteTask(taskId: string): Promise<void> {
+    const task = await this.taskRepository.deleteTask(taskId);
+
+    await this.taskTagService.deleteMany({ task_id: task._id });
+  }
 }
