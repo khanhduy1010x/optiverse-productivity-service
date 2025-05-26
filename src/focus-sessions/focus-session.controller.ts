@@ -21,5 +21,36 @@ import { UserDto } from 'src/user-dto/user.dto';
 @ApiBearerAuth('access-token')
 @Controller('/focus-session')
 export class FocusSessionController {
-  
+  constructor(private readonly focusSessionService: FocusSessionService) {}
+
+  @Get('')
+  async getFocusSessionsByUserID(@Request() req): Promise<ApiResponse<FocusSession[]>> {
+    const user = req.user as UserDto;
+    const focusSessions = await this.focusSessionService.getFocusSessionsByUserID(user.userId);
+    return new ApiResponse<FocusSession[]>(focusSessions);
+  }
+
+  @ApiBody({ type: CreateFocusSessionRequest })
+  @Post('')
+  async createFocusSession(
+    @Request() req,
+    @Body() createFocusSessionDto: CreateFocusSessionRequest,
+  ): Promise<ApiResponse<FocusSessionResponse>> {
+    const user = req.user as UserDto;
+    const focusSession = await this.focusSessionService.createFocusSession(
+      user.userId,
+      createFocusSessionDto,
+    );
+    return new ApiResponse<FocusSessionResponse>(focusSession);
+  }
+
+  @ApiParam({
+    name: 'id',
+    type: String,
+  })
+  @Delete('/:id')
+  async deleteFocusSession(@Param('id') focusSessionId: string): Promise<ApiResponse<void>> {
+    await this.focusSessionService.deleteFocusSession(focusSessionId);
+    return new ApiResponse<void>(null);
+  }
 }
