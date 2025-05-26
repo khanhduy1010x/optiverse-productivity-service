@@ -25,7 +25,7 @@ export class FocusSessionController {
 
   @Get('')
   async getFocusSessionsByUserID(@Request() req): Promise<ApiResponse<FocusSession[]>> {
-    const user = req.user as UserDto;
+    const user = req.userInfo as UserDto;
     const focusSessions = await this.focusSessionService.getFocusSessionsByUserID(user.userId);
     return new ApiResponse<FocusSession[]>(focusSessions);
   }
@@ -36,7 +36,7 @@ export class FocusSessionController {
     @Request() req,
     @Body() createFocusSessionDto: CreateFocusSessionRequest,
   ): Promise<ApiResponse<FocusSessionResponse>> {
-    const user = req.user as UserDto;
+    const user = req.userInfo as UserDto;
     const focusSession = await this.focusSessionService.createFocusSession(
       user.userId,
       createFocusSessionDto,

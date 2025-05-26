@@ -63,4 +63,12 @@ export class NoteRepository {
       _id: { $in: objectIds },
     });
   }
+  async getNoteInRootByUserID(userId: string): Promise<Note[]> {
+    return await this.noteModel
+      .find({
+        user_id: new Types.ObjectId(userId),
+        $or: [{ folder_id: null }, { folder_id: { $exists: false } }],
+      })
+      .lean().exec();
+  }
 }

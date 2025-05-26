@@ -7,5 +7,29 @@ import { TaskEventResponse } from './dto/response/TaskEventResponse.dto';
 
 @Injectable()
 export class TaskEventService {
-  
+  constructor(private readonly taskEventRepository: TaskEventRepository) {}
+
+  async getTaskEventsByTaskID(taskId: string): Promise<TaskEvent[]> {
+    return await this.taskEventRepository.getTaskEventsByTaskID(taskId);
+  }
+
+  async createTaskEvent(createTaskEventDto: CreateTaskEventRequest): Promise<TaskEventResponse> {
+    const taskEvent = await this.taskEventRepository.createTaskEvent(createTaskEventDto);
+    return new TaskEventResponse(taskEvent);
+  }
+
+  async updateTaskEvent(
+    taskEventId: string,
+    updateTaskEventDto: UpdateTaskEventRequest,
+  ): Promise<TaskEventResponse> {
+    const taskEvent = await this.taskEventRepository.updateTaskEvent(
+      taskEventId,
+      updateTaskEventDto,
+    );
+    return new TaskEventResponse(taskEvent);
+  }
+
+  async deleteTaskEvent(taskEventId: string): Promise<void> {
+    return await this.taskEventRepository.deleteTaskEvent(taskEventId);
+  }
 }

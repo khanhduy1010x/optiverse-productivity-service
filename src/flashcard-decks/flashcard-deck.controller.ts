@@ -24,7 +24,7 @@ export class FlashcardDeckController {
 
   @Get('all')
   async getFlashcardDecksByUserID(@Request() req): Promise<ApiResponse<FlashcardDeck[]>> {
-    const user = req.user as UserDto;
+    const user = req.userInfo as UserDto;
 
     const flashcardDecks = await this.flashcardDeckService.getFlashcardDecksByUserID(user.userId);
     return new ApiResponse<any[]>(flashcardDecks);
@@ -44,7 +44,7 @@ export class FlashcardDeckController {
     @Request() req,
     @Body() createFlashcardDeckDto: CreateFlashcardDeckRequest,
   ): Promise<ApiResponse<FlashcardDeckResponse>> {
-    const user = req.user as UserDto;
+    const user = req.userInfo as UserDto;
     const flashcardDeck = await this.flashcardDeckService.createFlashcardDeck(
       createFlashcardDeckDto,
       user.userId,

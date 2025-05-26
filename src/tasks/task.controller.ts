@@ -36,7 +36,7 @@ export class TaskController {
 
   @Get('all')
   async getAllTaskUser(@Request() req): Promise<ApiResponseWrapper<GetAllTaskReponse>> {
-    const user = req.user as UserDto;
+    const user = req.userInfo as UserDto;
     const result = await this.taskService.getAllTaskByID(user.userId);
     return new ApiResponseWrapper<GetAllTaskReponse>(result);
   }
@@ -67,7 +67,7 @@ export class TaskController {
     @Request() req,
     @Body() createTaskDto: CreateTaskRequest,
   ): Promise<ApiResponseWrapper<TaskResponse>> {
-    const user = req.user as UserDto;
+    const user = req.userInfo as UserDto;
     const task = await this.taskService.createTask(user.userId, createTaskDto);
     return new ApiResponseWrapper<TaskResponse>(task);
   }
