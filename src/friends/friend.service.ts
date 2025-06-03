@@ -6,6 +6,18 @@ import { UpdateFriendRequest } from './dto/request/UpdateFriendRequest.dto';
 import { FriendResponse } from './dto/response/FriendResponse.dto';
 import { UserDto } from 'src/user-dto/user.dto';
 
+// Import the interface from repository or re-declare it
+interface FriendUserInfo {
+  email: string;
+  full_name?: string;
+  avatar_url?: string;
+}
+
+interface EnrichedFriendRequest extends Omit<Friend, 'toObject'> {
+  friendInfo?: FriendUserInfo;
+  [key: string]: any;
+}
+
 @Injectable()
 export class FriendService {
   constructor(private readonly friendRepository: FriendRepository) {}
@@ -43,15 +55,23 @@ export class FriendService {
     return this.friendRepository.acceptFriend(id);
   }
 
-  async viewAllFriends(userId: string): Promise<Friend[]> {
+  async viewAllFriends(userId: string): Promise<(Friend | EnrichedFriendRequest)[]> {
     return this.friendRepository.viewAllFriends(userId);
   }
 
-  async viewAllPending(userId: string): Promise<Friend[]> {
+  async viewAllPending(userId: string): Promise<(Friend | EnrichedFriendRequest)[]> {
     return this.friendRepository.viewAllPending(userId);
+  }
+
+  async viewAllSent(userId: string): Promise<(Friend | EnrichedFriendRequest)[]> {
+    return this.friendRepository.viewAllSent(userId);
   }
 
   async removeFriend(id: string): Promise<Friend | null> {
     return this.friendRepository.removeFriend(id);
+  }
+
+  async cancelFriendRequest(id: string): Promise<Friend | null> {
+    return this.friendRepository.cancelFriendRequest(id);
   }
 }
