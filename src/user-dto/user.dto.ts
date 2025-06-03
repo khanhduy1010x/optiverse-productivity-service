@@ -19,6 +19,8 @@ export class UserDto {
   @IsString()
   @IsOptional()
   avatar_url?: string;
-
+  
+  @IsOptional()
+  is_self?: boolean;
 
 }

@@ -18,6 +18,18 @@ import { Friend } from './friend.schema';
 import { ApiBearerAuth, ApiBody, ApiParam } from '@nestjs/swagger';
 import { UserDto } from 'src/user-dto/user.dto';
 
+// Import or re-declare the interface for consistency
+interface FriendUserInfo {
+  email: string;
+  full_name?: string;
+  avatar_url?: string;
+}
+
+interface EnrichedFriendRequest extends Omit<Friend, 'toObject'> {
+  friendInfo?: FriendUserInfo;
+  [key: string]: any;
+}
+
 @ApiBearerAuth('access-token')
 @Controller('/friend')
 export class FriendController {
@@ -70,10 +82,19 @@ export class FriendController {
     name: 'email',
     type: String,
   })
-  @Get('public/search-user/:email')
-  async searchUserByEmail(@Param('email') email: string): Promise<ApiResponse<any>> {
-    const user = await this.friendService.searchUserByEmail(email);
-    return new ApiResponse(user);
+  @Get('search-user/:email')
+  async searchUserByEmail(@Param('email') email: string ,@Request() req): Promise<ApiResponse<any>> {
+        const user = req.userInfo as UserDto;
+        
+    const UserResponse = await this.friendService.searchUserByEmail(email);
+    console.log("tao la usser" +user.userId)
+        console.log("tao la UserResponse" +UserResponse?.userId)
+
+    if(UserResponse?.email == user.email){
+      UserResponse.is_self = true
+      console.log("hello")
+    }
+    return new ApiResponse(UserResponse);
   }
 
   @ApiParam({
@@ -102,11 +123,19 @@ export class FriendController {
   }
 
   @Get('view-all/pending')
-  async viewAllPending(@Request() req): Promise<ApiResponse<Friend[]>> {
+  async viewAllPending(@Request() req): Promise<ApiResponse<(Friend | EnrichedFriendRequest)[]>> {
     const user = req.userInfo as UserDto;
 
     const friends = await this.friendService.viewAllPending(user.userId.toString());
     return new ApiResponse(friends);
+  }
+
+  @Get('view-all/sent')
+  async viewAllSent(@Request() req): Promise<ApiResponse<(Friend | EnrichedFriendRequest)[]>> {
+    const user = req.userInfo as UserDto;
+
+    const sentRequestsWithUserInfo = await this.friendService.viewAllSent(user.userId.toString());
+    return new ApiResponse(sentRequestsWithUserInfo);
   }
 
   @ApiParam({
@@ -114,7 +143,7 @@ export class FriendController {
     type: String,
   })
   @Get('view-all/:userId')
-  async viewAllFriends(@Param('userId') userId: string): Promise<ApiResponse<Friend[]>> {
+  async viewAllFriends(@Param('userId') userId: string): Promise<ApiResponse<(Friend | EnrichedFriendRequest)[]>> {
     const friends = await this.friendService.viewAllFriends(userId);
     return new ApiResponse(friends);
   }
@@ -127,5 +156,23 @@ export class FriendController {
   async removeFriend(@Param('id') id: string): Promise<ApiResponse<Friend>> {
     const removed = await this.friendService.removeFriend(id);
     return new ApiResponse(removed);
+  }
+
+  @ApiParam({
+    name: 'id',
+    type: String,
+  })
+  @Delete('cancel/:id')
+  async cancelFriendRequest(@Param('id') id: string): Promise<ApiResponse<Friend>> {
+    const canceled = await this.friendService.cancelFriendRequest(id);
+    return new ApiResponse(canceled);
+  }
+
+  @Get('view-all')
+  async viewAllFriendForUser(@Request() req): Promise<ApiResponse<(Friend | EnrichedFriendRequest)[]>> {
+    const user = req.userInfo as UserDto;
+
+    const friends = await this.friendService.viewAllFriends(user.userId);
+    return new ApiResponse(friends);
   }
 }
