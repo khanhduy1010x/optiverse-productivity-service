@@ -34,4 +34,7 @@ export class NoteService {
   async deleteManyByIds(ids: string[]): Promise<void> {
     return await this.noteRepository.deleteManyByIds(ids);
   }
+  async getNotebyId(id: string ):Promise<Note> {
+    return await this.noteRepository.getNoteByID(id);
+  }  
 }

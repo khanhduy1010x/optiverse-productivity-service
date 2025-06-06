@@ -45,7 +45,7 @@ export class NoteRepository {
     }
 
     return await this.noteModel
-      .findByIdAndUpdate(noteId, update, { new: true })
+      .findByIdAndUpdate(new Types.ObjectId(noteId), update, { new: true })
       .orFail(new AppException(ErrorCode.NOT_FOUND));
   }
 
@@ -70,5 +70,8 @@ export class NoteRepository {
         $or: [{ folder_id: null }, { folder_id: { $exists: false } }],
       })
       .lean().exec();
+  }
+  async getNoteByID(id: string): Promise<Note> {
+    return await this.noteModel.findById(id).lean().orFail(new AppException(ErrorCode.NOT_FOUND));
   }
 }

@@ -4,11 +4,12 @@ import { Note, NoteSchema } from './note.schema';
 import { NoteController } from './note.controller';
 import { NoteService } from './note.service';
 import { NoteRepository } from './note.repository';
+import { NoteGateway } from './note.gateway';
 
 @Module({
   imports: [MongooseModule.forFeature([{ name: Note.name, schema: NoteSchema }])],
   controllers: [NoteController],
-  providers: [NoteService, NoteRepository],
+  providers: [NoteService, NoteRepository,NoteGateway],
   exports: [NoteService,NoteRepository],
 })
 export class NoteModule {}
