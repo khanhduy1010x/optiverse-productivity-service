@@ -204,6 +204,66 @@ export class NoteGateway
     });
   }
 
+  @SubscribeMessage('note_deleted')
+  handleNoteDeleted(
+    @MessageBody() data: { noteId: string },
+    @ConnectedSocket() client: Socket,
+  ) {
+    const roomName = `note:${data.noteId}`;
+    this.logger.log(
+      `Broadcasting note_deleted event for noteId: ${data.noteId}`,
+    );
+
+    client.to(roomName).emit('note_deleted', {
+      noteId: data.noteId,
+    });
+
+    this.server.emit('folder_structure_changed');
+  }
+
+  @SubscribeMessage('note_renamed')
+  handleNoteRenamed(
+    @MessageBody() data: { noteId: string; newTitle: string },
+    @ConnectedSocket() client: Socket,
+  ) {
+    const roomName = `note:${data.noteId}`;
+    this.logger.log(
+      `Broadcasting note_renamed event for noteId: ${data.noteId}`,
+    );
+
+    client.to(roomName).emit('note_renamed', {
+      noteId: data.noteId,
+      newTitle: data.newTitle,
+    });
+
+    this.server.emit('folder_structure_changed');
+  }
+
+  @SubscribeMessage('folder_deleted')
+  handleFolderDeleted(
+    @MessageBody() data: { folderId: string },
+    @ConnectedSocket() client: Socket,
+  ) {
+    this.logger.log(
+      `Broadcasting folder_deleted event for folderId: ${data.folderId}`,
+    );
+
+    this.server.emit('folder_deleted', {
+      folderId: data.folderId,
+    });
+
+    setTimeout(() => {
+      this.server.emit('folder_structure_changed');
+    }, 100);
+  }
+
+  @SubscribeMessage('folder_structure_changed')
+  handleFolderStructureChanged(@ConnectedSocket() client: Socket) {
+    this.logger.log('Broadcasting folder_structure_changed event');
+
+    client.broadcast.emit('folder_structure_changed');
+  }
+
   async beforeApplicationShutdown() {
     if (this.cleanupInterval) {
       clearInterval(this.cleanupInterval);
