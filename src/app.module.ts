@@ -41,8 +41,8 @@ import { AxiosClientModule } from './http-axios/axios-client.module';
     TaskTagModule,
     TasksModule,
     UserAchievementModule,
-AxiosClientModule
-    
+    AxiosClientModule
+
   ],
   controllers: [AppController],
   providers: [

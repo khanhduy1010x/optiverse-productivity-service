@@ -21,5 +21,35 @@ import { UserDto } from 'src/user-dto/user.dto';
 @ApiBearerAuth('access-token')
 @Controller('/user-achievement')
 export class UserAchievementController {
-  
+  constructor(private readonly userAchievementService: UserAchievementService) {}
+
+
+  /**
+   * Lấy tất cả thành tựu đã đạt được của người dùng hiện tại
+   */
+  @Get('/my-achievements/unlocked')
+  async getMyUnlockedAchievements(@Request() req): Promise<ApiResponse<any>> {
+    const user = req.userInfo as UserDto;
+    const achievements = await this.userAchievementService.getUnlockedAchievements(user.userId);
+    return new ApiResponse(achievements);
+  }
+
+  /**
+   * Lấy tất cả thành tựu chưa đạt được của người dùng hiện tại
+   */
+  @Get('/my-achievements/locked')
+  async getMyLockedAchievements(@Request() req): Promise<ApiResponse<any>> {
+    const user = req.userInfo as UserDto;
+    const achievements = await this.userAchievementService.getLockedAchievements(user.userId);
+    return new ApiResponse(achievements);
+  }
+
+  /**
+   * Lấy chi tiết một thành tựu cụ thể của người dùng
+   */
+  @Get('/:id')
+  async getAchievementById(@Param('id') id: string): Promise<ApiResponse<UserAchievementResponse>> {
+    const achievement = await this.userAchievementService.getUserAchievementById(id);
+    return new ApiResponse(achievement);
+  }
 }
