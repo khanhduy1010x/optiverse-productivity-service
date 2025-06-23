@@ -18,6 +18,18 @@ export class FlashcardDeckService {
     return await this.flashcardDeckRepository.getFlashcardDecksByUserID(userId);
   }
 
+  async getStatisticsByUserID(userId: string): Promise<any> {
+    return await this.flashcardDeckRepository.getStatisticsByUserID(userId);
+  }
+
+  async getDueTodayPerDeck(userId: string): Promise<any> {
+    return await this.flashcardDeckRepository.getDueTodayPerDeck(userId);
+  }
+
+  async getReviewsByDayByUserID(userId: string): Promise<any> {
+    return await this.flashcardDeckRepository.getReviewsByDay(userId);
+  }
+
   async getFlashcardDeckById(deckId: string): Promise<FlashcardDeckResponse | null> {
     return await this.flashcardDeckRepository.getFlashcardDeckById(deckId);
   }
