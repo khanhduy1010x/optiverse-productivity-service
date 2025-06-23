@@ -25,3 +25,15 @@ export class Achievement {
 }
 
 export const AchievementSchema = SchemaFactory.createForClass(Achievement);
+
+// Thêm virtual để liên kết với achievement types
+AchievementSchema.virtual('achievement_types', {
+  ref: 'AchievementType',
+  localField: '_id',
+  foreignField: 'achievement_id',
+  justOne: false,
+});
+
+// Đảm bảo virtuals được bao gồm khi chuyển đổi sang JSON
+AchievementSchema.set('toObject', { virtuals: true });
+AchievementSchema.set('toJSON', { virtuals: true });
