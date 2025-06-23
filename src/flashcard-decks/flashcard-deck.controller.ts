@@ -30,6 +30,20 @@ export class FlashcardDeckController {
     return new ApiResponse<any[]>(flashcardDecks);
   }
 
+  @Get('statistics')
+  async getStatisticsByUserID(@Request() req): Promise<ApiResponse<any>> {
+    const user = req.userInfo as UserDto;
+
+    const basicStatistic = await this.flashcardDeckService.getStatisticsByUserID(user.userId);
+    const reviewsByDay = await this.flashcardDeckService.getReviewsByDayByUserID(user.userId);
+    const dueTodayPerDeck = await this.flashcardDeckService.getDueTodayPerDeck(user.userId);
+    return new ApiResponse<any>({
+      ...basicStatistic,
+      reviewsByDay,
+      dueTodayPerDeck
+    });
+  }
+
   @Get(':id')
   async getFlashcardDeckById(
     @Param('id') flashcardDeckId: string,

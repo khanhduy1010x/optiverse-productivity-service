@@ -214,4 +214,248 @@ export class FlashcardDeckRepository {
       throw new AppException(ErrorCode.NOT_FOUND);
     }
   }
+
+  async getStatisticsByUserID(userId: string): Promise<any> {
+    const startOfWeek = new Date();
+    startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay()); // Sunday
+    startOfWeek.setHours(0, 0, 0, 0);
+
+    const result = await this.flashcardDeckModel.aggregate([
+      { $match: { user_id: new Types.ObjectId(userId) } },
+
+      { $lookup: {
+        from: 'flashcards',
+        localField: '_id',
+        foreignField: 'deck_id',
+        as: 'flashcards',
+      }},
+
+      { $lookup: {
+        from: 'reviewsessions',
+        let: { flashcardIds: '$flashcards._id' },
+        pipeline: [
+          { $match: {
+            $expr: { $in: ['$flashcard_id', '$$flashcardIds'] },
+          }},
+        ],
+        as: 'reviews',
+      }},
+
+      { $group: {
+        _id: null,
+        totalDeckCount: { $sum: 1 },
+        totalFlashcardCount: { $sum: { $size: '$flashcards' } },
+
+        dueTodayCount: {
+          $sum: {
+            $size: {
+              $filter: {
+                input: '$reviews',
+                as: 'rv',
+                cond: { $lte: ['$$rv.next_review', new Date()] },
+              },
+            },
+          },
+        },
+
+        reviewsThisWeekCount: {
+          $sum: {
+            $size: {
+              $filter: {
+                input: '$reviews',
+                as: 'rv',
+                cond: {
+                  $and: [
+                    { $gte: ['$$rv.last_review', startOfWeek] },
+                    { $gte: ['$$rv.repetition_count', 1] }, // chỉ thẻ đã review ít nhất 1 lần
+                  ],
+                },
+              },
+            },
+          },
+        },
+
+        reviewedCount: {
+          $sum: {
+            $size: {
+              $filter: {
+                input: '$reviews',
+                as: 'rv',
+                cond: { $gte: ['$$rv.repetition_count', 1] },
+              },
+            },
+          },
+        },
+
+        newCount: {
+          $sum: {
+            $size: {
+              $filter: {
+                input: '$reviews',
+                as: 'rv',
+                cond: { $eq: ['$$rv.repetition_count', 0] },
+              },
+            },
+          },
+        },
+
+        learningCount: {
+          $sum: {
+            $size: {
+              $filter: {
+                input: '$reviews',
+                as: 'rv',
+                cond: {
+                  $and: [
+                    { $gte: ['$$rv.repetition_count', 1] },
+                    { $lt: ['$$rv.interval', 6] },
+                  ],
+                },
+              },
+            },
+          },
+        },
+
+        reviewingCount: {
+          $sum: {
+            $size: {
+              $filter: {
+                input: '$reviews',
+                as: 'rv',
+                cond: { $gte: ['$$rv.interval', 6] },
+              },
+            },
+          },
+        },
+      }},
+
+      // Add % reviewed
+      { $addFields: {
+        percentReviewed: {
+          $cond: [
+            { $gt: ['$totalFlashcardCount', 0] },
+            {
+              $multiply: [
+                { $divide: ['$reviewedCount', '$totalFlashcardCount'] },
+                100,
+              ],
+            },
+            0,
+          ],
+        },
+      }},
+    ]);
+
+    return result[0] || null;
+  }
+
+
+
+
+  async getReviewsByDay(userId: string): Promise<any[]> {
+    const result = await this.flashcardDeckModel.aggregate([
+      { $match: { user_id: new Types.ObjectId(userId) } },
+
+      { $lookup: {
+        from: 'flashcards',
+        localField: '_id',
+        foreignField: 'deck_id',
+        as: 'flashcards',
+      }},
+
+      { $lookup: {
+        from: 'reviewsessions',
+        let: { flashcardIds: '$flashcards._id' },
+        pipeline: [
+          { $match: {
+            $expr: { $in: ['$flashcard_id', '$$flashcardIds'] },
+          }},
+        ],
+        as: 'reviews',
+      }},
+
+      // Tách mỗi review thành 1 row
+      { $unwind: '$reviews' },
+
+      // Chỉ lấy review của user này
+      { $match: { 
+          'reviews.user_id': new Types.ObjectId(userId),
+          'reviews.repetition_count': { $gte: 1 },
+      }},
+
+
+      // Group by ngày
+      { $group: {
+        _id: {
+          $dateToString: { format: "%Y-%m-%d", date: '$reviews.last_review' }
+        },
+        count: { $sum: 1 },
+      }},
+
+      // Sort ngày tăng dần
+      { $sort: { '_id': 1 } },
+
+      // Đổi field cho đẹp
+      { $project: {
+        _id: 0,
+        date: '$_id',
+        count: 1,
+      }},
+    ]);
+
+    return result;
+  }
+
+  async getDueTodayPerDeck(userId: string): Promise<any[]> {
+    const result = await this.flashcardDeckModel.aggregate([
+      { $match: { user_id: new Types.ObjectId(userId) } },
+
+      { $lookup: {
+        from: 'flashcards',
+        localField: '_id',
+        foreignField: 'deck_id',
+        as: 'flashcards',
+      }},
+
+      { $lookup: {
+        from: 'reviewsessions',
+        let: { flashcardIds: '$flashcards._id' },
+        pipeline: [
+          { $match: {
+            $expr: { $in: ['$flashcard_id', '$$flashcardIds'] },
+          }},
+        ],
+        as: 'reviews',
+      }},
+
+      // Tính dueTodayCount per deck
+      { $project: {
+        title: 1,
+        dueTodayCount: {
+          $size: {
+            $filter: {
+              input: '$reviews',
+              as: 'rv',
+              cond: { $lte: ['$$rv.next_review', new Date()] },
+            },
+          },
+        },
+      }},
+
+      // Chỉ lấy deck có > 0 dueTodayCount (nếu bạn muốn)
+      { $match: { dueTodayCount: { $gt: 0 } } },
+
+      // Sort deck có nhiều dueToday nhất lên đầu
+      { $sort: { dueTodayCount: -1 } },
+
+      // Format output
+      { $project: {
+        _id: 0,
+        deckTitle: '$title',
+        dueTodayCount: 1,
+      }},
+    ]);
+
+    return result;
+  }
 }
