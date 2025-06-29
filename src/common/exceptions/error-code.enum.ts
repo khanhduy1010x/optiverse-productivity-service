@@ -23,6 +23,11 @@ export enum ErrorCode {
   INVALID_TOKEN_GOOGLE,
   ACCOUNT_IS_LOGOUT,
   MISSING_ACCESS_TOKEN,
+  RESOURCE_NOT_FOUND,
+  PERMISSION_DENIED,
+  INVALID_RESOURCE_TYPE,
+  SHARE_NOT_FOUND,
+  UPDATE_SHARE_FAILED,
 }
 export const ErrorDetails = {
   [ErrorCode.INVALID_CODE]: {
@@ -135,5 +140,30 @@ export const ErrorDetails = {
     code: 1020,
     message: 'Missing access token',
     httpStatus: HttpStatus.BAD_REQUEST,
+  },
+  [ErrorCode.RESOURCE_NOT_FOUND]: {
+    code: 1021,
+    message: 'Resource not found',
+    httpStatus: HttpStatus.NOT_FOUND,
+  },
+  [ErrorCode.PERMISSION_DENIED]: {
+    code: 1022,
+    message: 'You do not have permission to share this resource',
+    httpStatus: HttpStatus.FORBIDDEN,
+  },
+  [ErrorCode.INVALID_RESOURCE_TYPE]: {
+    code: 1023,
+    message: 'Invalid resource type',
+    httpStatus: HttpStatus.BAD_REQUEST,
+  },
+  [ErrorCode.SHARE_NOT_FOUND]: {
+    code: 1024,
+    message: 'Share not found',
+    httpStatus: HttpStatus.NOT_FOUND,
+  },
+  [ErrorCode.UPDATE_SHARE_FAILED]: {
+    code: 1025,
+    message: 'Failed to update share',
+    httpStatus: HttpStatus.INTERNAL_SERVER_ERROR,
   },
 };

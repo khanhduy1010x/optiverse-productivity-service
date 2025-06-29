@@ -4,12 +4,39 @@ import mongoose from 'mongoose';
 import { Note } from '../notes/note.schema';
 export type NoteFolderDocument = NoteFolder & Document;
 
+export interface UserInfo {
+  id?: string;
+  name?: string;
+  email?: string;
+  avatar_url?: string;
+}
+
+export interface SharedUser {
+  user_id: string;
+  permission: string;
+  shared_at: Date;
+  user_info?: UserInfo | null;
+}
+
 export interface NoteFolderTree extends NoteFolder {
   subfolders: NoteFolderTree[];
+  files?: NoteWithType[];
   type?: 'folder';
+  // Thông tin về chia sẻ
+  isShared?: boolean;
+  sharedBy?: string;
+  permission?: 'view' | 'edit';
+  sharedWith?: SharedUser[];
+  owner_info?: UserInfo;
 }
 export interface NoteWithType extends Note {
   type: 'file';
+  // Thông tin về chia sẻ
+  isShared?: boolean;
+  sharedBy?: string;
+  permission?: 'view' | 'edit';
+  sharedWith?: SharedUser[];
+  owner_info?: UserInfo;
 }
 export type RootItem = NoteFolderTree | NoteWithType;
 @Schema({ timestamps: true })
