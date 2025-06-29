@@ -1,0 +1,1 @@
+{"version":3,"file":"TaskEventResponse.dto.js","sourceRoot":"","sources":["../../../../src/task-events/dto/response/TaskEventResponse.dto.ts"],"names":[],"mappings":";;;AAEA,MAAa,iBAAiB;IAG5B,YAAY,SAAoB;QAC9B,IAAI,CAAC,SAAS,GAAG,SAAS,CAAC;IAC7B,CAAC;CACF;AAND,8CAMC"}

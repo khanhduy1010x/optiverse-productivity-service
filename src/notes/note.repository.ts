@@ -9,7 +9,9 @@ import { UpdateNoteRequest } from './dto/request/UpdateNoteRequest.dto';
 
 @Injectable()
 export class NoteRepository {
-  constructor(@InjectModel(Note.name) private readonly noteModel: Model<Note>) {}
+  constructor(
+    @InjectModel(Note.name) private readonly noteModel: Model<Note>,
+  ) {}
 
   async getNotesByUserID(userId: string): Promise<Note[]> {
     return await this.noteModel
@@ -21,19 +23,29 @@ export class NoteRepository {
   }
 
   async getNotesByFolderID(folderId: string): Promise<Note[]> {
-    return await this.noteModel.find({ folder_id: new Types.ObjectId(folderId) }).exec();
+    return await this.noteModel
+      .find({ folder_id: new Types.ObjectId(folderId) })
+      .exec();
   }
 
-  async createNote(createNoteDto: CreateNoteRequest, userId: string): Promise<Note> {
+  async createNote(
+    createNoteDto: CreateNoteRequest,
+    userId: string,
+  ): Promise<Note> {
     const newNote = new this.noteModel({
       ...createNoteDto,
       user_id: new Types.ObjectId(userId),
-      folder_id: createNoteDto.folder_id ? new Types.ObjectId(createNoteDto.folder_id) : null,
+      folder_id: createNoteDto.folder_id
+        ? new Types.ObjectId(createNoteDto.folder_id)
+        : null,
     });
     return await newNote.save();
   }
 
-  async updateNote(noteId: string, updateNoteDto: UpdateNoteRequest): Promise<Note> {
+  async updateNote(
+    noteId: string,
+    updateNoteDto: UpdateNoteRequest,
+  ): Promise<Note> {
     const update: any = { ...updateNoteDto };
 
     if ('folder_id' in updateNoteDto) {
@@ -69,9 +81,13 @@ export class NoteRepository {
         user_id: new Types.ObjectId(userId),
         $or: [{ folder_id: null }, { folder_id: { $exists: false } }],
       })
-      .lean().exec();
+      .lean()
+      .exec();
   }
   async getNoteByID(id: string): Promise<Note> {
-    return await this.noteModel.findById(id).lean().orFail(new AppException(ErrorCode.NOT_FOUND));
+    return await this.noteModel
+      .findById(id)
+      .lean()
+      .orFail(new AppException(ErrorCode.NOT_FOUND));
   }
 }

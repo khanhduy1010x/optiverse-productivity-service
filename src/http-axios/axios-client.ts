@@ -11,7 +11,6 @@ export class AxiosClient {
 
     this.instance.interceptors.request.use(
       (config) => {
-        console.log(`AxiosClient: Sending ${config.method?.toUpperCase()} request to ${config.url}`);
         return config;
       },
       (error) => {
@@ -22,7 +21,6 @@ export class AxiosClient {
 
     this.instance.interceptors.response.use(
       (response) => {
-        console.log(`AxiosClient: Received response from ${response.config.url}:`, response.data);
         return response;
       },
       (error) => {

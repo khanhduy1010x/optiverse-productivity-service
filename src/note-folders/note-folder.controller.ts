@@ -23,14 +23,20 @@ export class NoteFolderController {
   constructor(private readonly noteFolderService: NoteFolderService) {}
 
   @Get('root')
-  async getNoteFoldersByUserID(@Request() req): Promise<ApiResponse<NoteFolder[]>> {
+  async getNoteFoldersByUserID(
+    @Request() req,
+  ): Promise<ApiResponse<NoteFolder[]>> {
     const user = req.userInfo as UserDto;
-    const noteFolders = await this.noteFolderService.getNoteFoldersByUserID(user.userId);
+    const noteFolders = await this.noteFolderService.getNoteFoldersByUserID(
+      user.userId,
+    );
     return new ApiResponse<NoteFolder[]>(noteFolders);
   }
 
   @Get('/:id')
-  async getNoteFolderById(@Param('id') folderId: string): Promise<ApiResponse<NoteFolder>> {
+  async getNoteFolderById(
+    @Param('id') folderId: string,
+  ): Promise<ApiResponse<NoteFolder>> {
     const noteFolder = await this.noteFolderService.getFolderById(folderId);
     return new ApiResponse<NoteFolder>(noteFolder);
   }
@@ -71,20 +77,29 @@ export class NoteFolderController {
     type: String,
   })
   @Delete('/:id')
-  async deleteNoteFolder(@Param('id') noteFolderId: string): Promise<ApiResponse<void>> {
+  async deleteNoteFolder(
+    @Param('id') noteFolderId: string,
+  ): Promise<ApiResponse<void>> {
     const result = await this.noteFolderService.deleteNoteFolder(noteFolderId);
     return new ApiResponse<void>(null);
   }
   @Get('/root/retrive')
-  async retriveAllRootFolder(@Request() req): Promise<ApiResponse<NoteFolder[]>> {
+  async retriveAllRootFolder(
+    @Request() req,
+  ): Promise<ApiResponse<NoteFolder[]>> {
     const user = req.userInfo as UserDto;
-    const noteFolders = await this.noteFolderService.retrieveAllFolderInRoot(user.userId);
+    const noteFolders = await this.noteFolderService.retrieveAllFolderInRoot(
+      user.userId,
+    );
     return new ApiResponse<NoteFolder[]>(noteFolders);
   }
-   @Get('/root/retrive-web')
-  async retriveAllRootFolderForWeb(@Request() req): Promise<ApiResponse<RootItem[]>> {
+  @Get('/root/retrive-web')
+  async retriveAllRootFolderForWeb(
+    @Request() req,
+  ): Promise<ApiResponse<RootItem[]>> {
     const user = req.userInfo as UserDto;
-    const noteFolders = await this.noteFolderService.retrieveAllFolderInRootforWeb(user.userId);
+    const noteFolders =
+      await this.noteFolderService.retrieveAllFolderInRootforWeb(user.userId);
     return new ApiResponse<RootItem[]>(noteFolders);
   }
 }

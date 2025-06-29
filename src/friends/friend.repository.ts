@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject, forwardRef } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Friend } from './friend.schema';
@@ -9,7 +9,6 @@ import { UpdateFriendRequest } from './dto/request/UpdateFriendRequest.dto';
 import { UserDto } from 'src/user-dto/user.dto';
 import { UserHttpClient } from 'src/http-axios/user-http.client';
 
-// Import or redefine the UserResponse interface
 interface UserResponse {
   user_id: string;
   email: string;
@@ -17,17 +16,18 @@ interface UserResponse {
   avatar_url?: string;
 }
 
-// Interface for friend user info
 interface FriendUserInfo {
   email: string;
   full_name?: string;
   avatar_url?: string;
 }
 
-// Interface for enriched friend request
-interface EnrichedFriendRequest extends Omit<Friend, 'toObject'> {
-  friendInfo?: FriendUserInfo;
-  [key: string]: any; // To allow for additional properties
+interface EnrichedFriendRequest extends Friend {
+  friendInfo?: {
+    email: string;
+    full_name?: string;
+    avatar_url?: string;
+  };
 }
 
 @Injectable()
@@ -82,7 +82,6 @@ export class FriendRepository {
 
   async addFriend(user_id: string, friend_id: string): Promise<Friend | null> {
     try {
-      // Validate if user_id and friend_id are valid ObjectIds
       if (
         !Types.ObjectId.isValid(user_id) ||
         !Types.ObjectId.isValid(friend_id)
@@ -123,15 +122,13 @@ export class FriendRepository {
     user_id: string,
   ): Promise<(Friend | EnrichedFriendRequest)[]> {
     try {
-      // Validate if user_id is a valid ObjectId
       if (!Types.ObjectId.isValid(user_id)) {
         console.error(`Invalid ObjectId format for user_id: ${user_id}`);
-        return []; // Return empty array instead of failing
+        return [];
       }
 
       const objectId = new Types.ObjectId(user_id);
 
-      // Find all accepted friend requests where the user is either the sender or the receiver
       const friendsAsUser = await this.friendModel
         .find({ user_id: objectId, status: 'accepted' })
         .exec();
@@ -140,46 +137,46 @@ export class FriendRepository {
         .find({ friend_id: objectId, status: 'accepted' })
         .exec();
 
-      // Combine both result sets
       const allFriends = [...friendsAsUser, ...friendsAsFriend];
 
-      // If there are no friends, return an empty array
       if (!allFriends || allFriends.length === 0) {
         return [];
       }
 
-      // Extract friend IDs from the requests
       const friendIds = allFriends.map((friend) => {
-        // If user_id matches the current user, then friend_id is the friend
-        // Otherwise, user_id is the friend
         return friend.user_id.toString() === user_id
           ? friend.friend_id.toString()
           : friend.user_id.toString();
       });
 
       try {
-        // Get user information for all friend IDs
         const userDetails: UserResponse[] =
           await this.userHttpClient.getUsersByIds(friendIds);
-        console.log('User details for friends:', userDetails);
 
-        // Enrich the friends with user information
         const enrichedFriends = allFriends.map((friend) => {
-          // Determine which ID represents the friend
-          const friendId =
-            friend.user_id.toString() === user_id
-              ? friend.friend_id.toString()
-              : friend.user_id.toString();
+          const isCurrentUserInFriendPosition =
+            friend.friend_id.toString() === user_id;
 
-          // Find the matching user details
+          const enrichedFriend = friend.toObject() as EnrichedFriendRequest;
+
+          const friendId = isCurrentUserInFriendPosition
+            ? friend.user_id.toString()
+            : friend.friend_id.toString();
+
           const userDetail = userDetails?.find(
             (user) => user.user_id === friendId,
           );
 
-          // Create a new object with all the properties of the original friend
-          const enrichedFriend = friend.toObject() as EnrichedFriendRequest;
+          if (isCurrentUserInFriendPosition) {
+            const originalUserId = enrichedFriend.user_id;
+            const originalFriendId = enrichedFriend.friend_id;
 
-          // Add user details if found
+            enrichedFriend.user_id = originalFriendId;
+            enrichedFriend.friend_id = originalUserId;
+
+            enrichedFriend.normalized = true;
+          }
+
           if (userDetail) {
             enrichedFriend.friendInfo = {
               email: userDetail.email,
@@ -194,12 +191,12 @@ export class FriendRepository {
         return enrichedFriends;
       } catch (error) {
         console.error(`Error fetching user details for friends: ${error}`);
-        // If we can't fetch user details, just return the original friends
+
         return allFriends;
       }
     } catch (error) {
       console.error(`Error in viewAllFriends for user_id ${user_id}:`, error);
-      return []; // Return empty array on error
+      return [];
     }
   }
 
@@ -207,44 +204,35 @@ export class FriendRepository {
     user_id: string,
   ): Promise<(Friend | EnrichedFriendRequest)[]> {
     try {
-      // Validate if user_id is a valid ObjectId
       if (!Types.ObjectId.isValid(user_id)) {
         console.error(`Invalid ObjectId format for user_id: ${user_id}`);
-        return []; // Return empty array instead of failing
+        return [];
       }
 
-      // Find all pending friend requests
       const pendingRequests = await this.friendModel
         .find({ friend_id: new Types.ObjectId(user_id), status: 'pending' })
         .exec();
 
-      // If there are no pending requests, return an empty array
       if (!pendingRequests || pendingRequests.length === 0) {
         return [];
       }
 
-      // Extract user IDs from the requests
       const userIds = pendingRequests.map((request) =>
         request.user_id.toString(),
       );
 
       try {
-        // Get user information for all user IDs
         const userDetails: UserResponse[] =
           await this.userHttpClient.getUsersByIds(userIds);
         console.log('User details for pending requests:', userDetails);
 
-        // Enrich the pending requests with user information
         const enrichedRequests = pendingRequests.map((request) => {
-          // Find the matching user details
           const userDetail = userDetails?.find(
             (user) => user.user_id === request.user_id.toString(),
           );
 
-          // Create a new object with all the properties of the original request
           const enrichedRequest = request.toObject() as EnrichedFriendRequest;
 
-          // Add user details if found
           if (userDetail) {
             enrichedRequest.friendInfo = {
               email: userDetail.email,
@@ -261,12 +249,12 @@ export class FriendRepository {
         console.error(
           `Error fetching user details for pending requests: ${error}`,
         );
-        // If we can't fetch user details, just return the original requests
+
         return pendingRequests;
       }
     } catch (error) {
       console.error(`Error in viewAllPending for user_id ${user_id}:`, error);
-      return []; // Return empty array on error
+      return [];
     }
   }
 
@@ -274,44 +262,35 @@ export class FriendRepository {
     user_id: string,
   ): Promise<(Friend | EnrichedFriendRequest)[]> {
     try {
-      // Validate if user_id is a valid ObjectId
       if (!Types.ObjectId.isValid(user_id)) {
         console.error(`Invalid ObjectId format for user_id: ${user_id}`);
-        return []; // Return empty array instead of failing
+        return [];
       }
 
-      // Find all sent friend requests
       const sentRequests = await this.friendModel
         .find({ user_id: new Types.ObjectId(user_id), status: 'pending' })
         .exec();
 
-      // If there are no sent requests, return an empty array
       if (!sentRequests || sentRequests.length === 0) {
         return [];
       }
 
-      // Extract friend IDs from the requests
       const friendIds = sentRequests.map((request) =>
         request.friend_id.toString(),
       );
 
       try {
-        // Get user information for all friend IDs
         const userDetails: UserResponse[] =
           await this.userHttpClient.getUsersByIds(friendIds);
         console.log(userDetails);
 
-        // Enrich the friend requests with user information
         const enrichedRequests = sentRequests.map((request) => {
-          // Find the matching user details
           const userDetail = userDetails?.find(
             (user) => user.user_id === request.friend_id.toString(),
           );
 
-          // Create a new object with all the properties of the original request
           const enrichedRequest = request.toObject() as EnrichedFriendRequest;
 
-          // Add user details if found
           if (userDetail) {
             enrichedRequest.friendInfo = {
               email: userDetail.email,
@@ -328,12 +307,12 @@ export class FriendRepository {
         console.error(
           `Error fetching user details for sent requests: ${error}`,
         );
-        // If we can't fetch user details, just return the original requests
+
         return sentRequests;
       }
     } catch (error) {
       console.error(`Error in viewAllSent for user_id ${user_id}:`, error);
-      return []; // Return empty array on error
+      return [];
     }
   }
 
@@ -345,5 +324,34 @@ export class FriendRepository {
     return this.friendModel
       .findOneAndDelete({ _id: id, status: 'pending' })
       .exec();
+  }
+
+  /**
+   * Count the total number of accepted friends for a user
+   * @param userId User ID to count friends for
+   * @returns The total count of accepted friends
+   */
+  async countAcceptedFriends(userId: string): Promise<number> {
+    try {
+      if (!Types.ObjectId.isValid(userId)) {
+        console.error(`Invalid ObjectId format for userId: ${userId}`);
+        return 0;
+      }
+
+      const objectId = new Types.ObjectId(userId);
+
+      const friendsAsUserCount = await this.friendModel
+        .countDocuments({ user_id: objectId, status: 'accepted' })
+        .exec();
+
+      const friendsAsFriendCount = await this.friendModel
+        .countDocuments({ friend_id: objectId, status: 'accepted' })
+        .exec();
+
+      return friendsAsUserCount + friendsAsFriendCount;
+    } catch (error) {
+      console.error(`Error counting friends for userId ${userId}:`, error);
+      return 0;
+    }
   }
 }
