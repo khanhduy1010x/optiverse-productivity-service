@@ -8,15 +8,19 @@ import { AchievementTypeRepository } from '../achievement-type/achievement-type.
 import { ConditionTypeEnum } from '../achievement-type/achievement-type.schema';
 import { UserAchievementRepository } from '../user-achievements/user-achievement.repository';
 import { TaskRepository } from '../tasks/task.repository';
+import { FriendRepository } from '../friends/friend.repository';
 
 @Injectable()
 export class AchievementService {
   constructor(
     private readonly achievementRepository: AchievementRepository,
     private readonly achievementTypeRepository: AchievementTypeRepository,
+    @Inject(forwardRef(() => UserAchievementRepository))
     private readonly userAchievementRepository: UserAchievementRepository,
     @Inject(forwardRef(() => TaskRepository))
     private readonly taskRepository: TaskRepository,
+    @Inject(forwardRef(() => FriendRepository))
+    private readonly friendRepository: FriendRepository,
   ) {}
 
   /**
@@ -90,6 +94,40 @@ export class AchievementService {
     }
     
     return newAchievements;
+  }
+
+  /**
+   * Check and unlock all friend-related achievements for a user
+   * @returns Array of newly unlocked achievements
+   */
+  async checkFriendsCountAchievements(userId: string): Promise<Achievement[]> {
+    // Get the count of accepted friends
+    const friendCount = await this.friendRepository.countAcceptedFriends(userId);
+    
+    // Get all achievement types related to friend count
+    const achievementTypes = await this.achievementTypeRepository.findByConditionType(
+      ConditionTypeEnum.FRIENDS_COUNT
+    );
+    
+    if (!achievementTypes || achievementTypes.length === 0) {
+      return [];
+    }
+
+    // Find achievements that match the condition
+    const unlockedAchievementTypes = achievementTypes.filter(
+      type => friendCount >= type.condition_value
+    );
+    
+    if (unlockedAchievementTypes.length === 0) {
+      return [];
+    }
+
+    // Get achievement IDs
+    const achievementIds = unlockedAchievementTypes.map(type => 
+      type.achievement_id.toString()
+    );
+
+    return this.unlockAchievements(userId, achievementIds);
   }
   
   /**

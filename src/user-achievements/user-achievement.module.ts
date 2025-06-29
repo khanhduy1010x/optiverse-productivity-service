@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { UserAchievement, UserAchievementSchema } from './user-achievement.schema';
 import { UserAchievementController } from './user-achievement.controller';
@@ -9,7 +9,7 @@ import { AchievementModule } from '../achievements/achievement.module';
 @Module({
   imports: [
     MongooseModule.forFeature([{ name: UserAchievement.name, schema: UserAchievementSchema }]),
-    AchievementModule,
+    forwardRef(() => AchievementModule),
   ],
   controllers: [UserAchievementController],
   providers: [UserAchievementService, UserAchievementRepository],

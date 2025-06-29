@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject, forwardRef } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Friend } from './friend.schema';
@@ -25,9 +25,12 @@ interface FriendUserInfo {
 }
 
 // Interface for enriched friend request
-interface EnrichedFriendRequest extends Omit<Friend, 'toObject'> {
-  friendInfo?: FriendUserInfo;
-  [key: string]: any; // To allow for additional properties
+interface EnrichedFriendRequest extends Friend {
+  friendInfo?: {
+    email: string;
+    full_name?: string;
+    avatar_url?: string;
+  };
 }
 
 @Injectable()
@@ -345,5 +348,36 @@ export class FriendRepository {
     return this.friendModel
       .findOneAndDelete({ _id: id, status: 'pending' })
       .exec();
+  }
+
+  /**
+   * Count the total number of accepted friends for a user
+   * @param userId User ID to count friends for
+   * @returns The total count of accepted friends
+   */
+  async countAcceptedFriends(userId: string): Promise<number> {
+    try {
+      if (!Types.ObjectId.isValid(userId)) {
+        console.error(`Invalid ObjectId format for userId: ${userId}`);
+        return 0;
+      }
+
+      const objectId = new Types.ObjectId(userId);
+
+      // Count friends where the user is either the sender or receiver
+      const friendsAsUserCount = await this.friendModel
+        .countDocuments({ user_id: objectId, status: 'accepted' })
+        .exec();
+
+      const friendsAsFriendCount = await this.friendModel
+        .countDocuments({ friend_id: objectId, status: 'accepted' })
+        .exec();
+
+      // Return the total count
+      return friendsAsUserCount + friendsAsFriendCount;
+    } catch (error) {
+      console.error(`Error counting friends for userId ${userId}:`, error);
+      return 0;
+    }
   }
 }

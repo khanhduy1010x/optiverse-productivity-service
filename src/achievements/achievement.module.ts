@@ -11,6 +11,8 @@ import { UserAchievementRepository } from '../user-achievements/user-achievement
 import { TasksModule } from '../tasks/task.module';
 import { AchievementTypeController } from '../achievement-type/achievement-type.controller';
 import { AchievementTypeService } from '../achievement-type/achievement-type.service';
+import { FriendModule } from '../friends/friend.module';
+import { UserAchievementModule } from '../user-achievements/user-achievement.module';
 
 @Module({
   imports: [
@@ -20,6 +22,8 @@ import { AchievementTypeService } from '../achievement-type/achievement-type.ser
       { name: UserAchievement.name, schema: UserAchievementSchema },
     ]),
     forwardRef(() => TasksModule),
+    forwardRef(() => FriendModule),
+    forwardRef(() => UserAchievementModule),
   ],
   controllers: [AchievementController, AchievementTypeController],
   providers: [

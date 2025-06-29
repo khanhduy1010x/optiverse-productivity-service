@@ -6,20 +6,20 @@ import { DatabaseModule } from './database/database.module';
 import { APP_FILTER } from '@nestjs/core';
 import { HttpExceptionFilter } from './common/exceptions/http-exception.filter';
 import { LoggerMiddleware } from './common/logger/logger.middleware';
+import { AxiosClientModule } from './http-axios/axios-client.module';
+import { TagModule } from './tags/tag.module';
+import { TaskTagModule } from './task-tags/task-tag.module';
+import { TasksModule } from './tasks/task.module';
+import { FriendModule } from './friends/friend.module';
 import { AchievementModule } from './achievements/achievement.module';
 import { FlashcardDeckModule } from './flashcard-decks/flashcard-deck.module';
 import { FlashcardModule } from './flashcards/flashcard.module';
 import { FocusSessionModule } from './focus-sessions/focus-session.module';
-import { FriendModule } from './friends/friend.module';
 import { NoteFolderModule } from './note-folders/note-folder.module';
 import { NoteModule } from './notes/note.module';
 import { ReviewSessionModule } from './review_sessions/review-session.module';
-import { TagModule } from './tags/tag.module';
 import { TaskEventModule } from './task-events/task-event.module';
-import { TaskTagModule } from './task-tags/task-tag.module';
-import { TasksModule } from './tasks/task.module';
 import { UserAchievementModule } from './user-achievements/user-achievement.module';
-import { AxiosClientModule } from './http-axios/axios-client.module';
 
 @Module({
   imports: [
@@ -28,21 +28,23 @@ import { AxiosClientModule } from './http-axios/axios-client.module';
       isGlobal: true,
     }),
     DatabaseModule,
+    AxiosClientModule,
+    // Import base modules first
+    TagModule,
+    TaskTagModule,
+    // Import modules with circular dependencies in a specific order
+    FriendModule,
+    TasksModule,
     AchievementModule,
+    UserAchievementModule,
+    // Other modules
     FlashcardDeckModule,
     FlashcardModule,
     FocusSessionModule,
-    FriendModule,
     NoteFolderModule,
     NoteModule,
     ReviewSessionModule,
-    TagModule,
     TaskEventModule,
-    TaskTagModule,
-    TasksModule,
-    UserAchievementModule,
-    AxiosClientModule
-
   ],
   controllers: [AppController],
   providers: [
@@ -51,7 +53,6 @@ import { AxiosClientModule } from './http-axios/axios-client.module';
       provide: APP_FILTER,
       useClass: HttpExceptionFilter,
     },
-    AppService,
   ],
 })
 export class AppModule implements NestModule {

@@ -74,4 +74,13 @@ export class FriendService {
   async cancelFriendRequest(id: string): Promise<Friend | null> {
     return this.friendRepository.cancelFriendRequest(id);
   }
+
+  /**
+   * Count the total number of accepted friends for a user
+   * @param userId User ID to count friends for
+   * @returns The total count of accepted friends
+   */
+  async countAcceptedFriends(userId: string): Promise<number> {
+    return this.friendRepository.countAcceptedFriends(userId);
+  }
 }
