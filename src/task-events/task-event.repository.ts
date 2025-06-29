@@ -17,9 +17,14 @@ export class TaskEventRepository {
 
   async createTaskEvent(createTaskEventDto: CreateTaskEventRequest): Promise<TaskEvent> {
     const newTaskEvent = new this.taskEventModel({
-      ...createTaskEventDto,
-      created_at: new Date(),
-      updated_at: new Date(),
+      task_id: new Types.ObjectId(createTaskEventDto.task_id),
+      title: createTaskEventDto.title || 'Untitled Event',
+      description: createTaskEventDto.description || '',
+      start_time: createTaskEventDto.start_time,
+      end_time: createTaskEventDto.end_time,
+      repeat_type: createTaskEventDto.repeat_type,
+      repeat_interval: createTaskEventDto.repeat_interval,
+      repeat_end_date: createTaskEventDto.repeat_end_date
     });
     return await newTaskEvent.save();
   }

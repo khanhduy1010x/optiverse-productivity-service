@@ -1,7 +1,15 @@
-import { IsOptional, IsEnum } from 'class-validator';
+import { IsOptional, IsEnum, IsString } from 'class-validator';
 import { Types } from 'mongoose';
 
 export class UpdateTaskEventRequest {
+  @IsOptional()
+  @IsString()
+  title?: string;
+
+  @IsOptional()
+  @IsString()
+  description?: string;
+
   @IsOptional()
   start_time?: Date;
 
