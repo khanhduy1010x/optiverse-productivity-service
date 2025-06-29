@@ -20,6 +20,7 @@ import { NoteModule } from './notes/note.module';
 import { ReviewSessionModule } from './review_sessions/review-session.module';
 import { TaskEventModule } from './task-events/task-event.module';
 import { UserAchievementModule } from './user-achievements/user-achievement.module';
+import { ShareModule } from './shares/share.module';
 
 @Module({
   imports: [
@@ -45,6 +46,11 @@ import { UserAchievementModule } from './user-achievements/user-achievement.modu
     NoteModule,
     ReviewSessionModule,
     TaskEventModule,
+    TaskTagModule,
+    TasksModule,
+    UserAchievementModule,
+    AxiosClientModule,
+    ShareModule,
   ],
   controllers: [AppController],
   providers: [

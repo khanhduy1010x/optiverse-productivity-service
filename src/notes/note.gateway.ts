@@ -38,6 +38,9 @@ export class NoteGateway
 
   private cleanupInterval: NodeJS.Timeout;
 
+  // Lưu trữ thông tin về người dùng đang xem shared items
+  private usersViewingSharedItems: Set<string> = new Set();
+
   afterInit() {
     this.cleanupInterval = setInterval(
       () => {
@@ -205,8 +208,8 @@ export class NoteGateway
   }
 
   @SubscribeMessage('note_deleted')
-  handleNoteDeleted(
-    @MessageBody() data: { noteId: string },
+  async handleNoteDeleted(
+    @MessageBody() data: { noteId: string; userId: string },
     @ConnectedSocket() client: Socket,
   ) {
     const roomName = `note:${data.noteId}`;
@@ -218,12 +221,36 @@ export class NoteGateway
       noteId: data.noteId,
     });
 
-    this.server.emit('folder_structure_changed');
+    try {
+      const note = await this.noteService.getNotebyId(data.noteId);
+
+      const ownerRoom = `user:${note.user_id.toString()}`;
+
+      this.server.to(ownerRoom).emit('folder_structure_changed');
+
+      const shareInfo = await this.noteService.getShareInfoForNote(data.noteId);
+
+      if (
+        shareInfo &&
+        shareInfo.shared_with &&
+        shareInfo.shared_with.length > 0
+      ) {
+        for (const sharedUser of shareInfo.shared_with) {
+          const userRoom = `user:${sharedUser.user_id.toString()}`;
+          this.server.to(userRoom).emit('note_deleted', {
+            noteId: data.noteId,
+          });
+          this.server.to(userRoom).emit('folder_structure_changed');
+        }
+      }
+    } catch (err) {
+      this.logger.error(`Error getting note info: ${err.message}`);
+    }
   }
 
   @SubscribeMessage('note_renamed')
-  handleNoteRenamed(
-    @MessageBody() data: { noteId: string; newTitle: string },
+  async handleNoteRenamed(
+    @MessageBody() data: { noteId: string; newTitle: string; userId: string },
     @ConnectedSocket() client: Socket,
   ) {
     const roomName = `note:${data.noteId}`;
@@ -236,32 +263,283 @@ export class NoteGateway
       newTitle: data.newTitle,
     });
 
-    this.server.emit('folder_structure_changed');
+    try {
+      const note = await this.noteService.getNotebyId(data.noteId);
+
+      const ownerRoom = `user:${note.user_id.toString()}`;
+      this.server.to(ownerRoom).emit('folder_structure_changed');
+
+      const shareInfo = await this.noteService.getShareInfoForNote(data.noteId);
+
+      if (
+        shareInfo &&
+        shareInfo.shared_with &&
+        shareInfo.shared_with.length > 0
+      ) {
+        for (const sharedUser of shareInfo.shared_with) {
+          const userRoom = `user:${sharedUser.user_id.toString()}`;
+
+          const userInNoteRoom = this.isUserInRoom(
+            sharedUser.user_id.toString(),
+            roomName,
+          );
+
+          if (!userInNoteRoom) {
+            const isViewingSharedItems = this.isUserViewingSharedItems(
+              sharedUser.user_id.toString(),
+            );
+            if (isViewingSharedItems) {
+              this.server.to(userRoom).emit('note_renamed', {
+                noteId: data.noteId,
+                newTitle: data.newTitle,
+              });
+              this.server.to(userRoom).emit('folder_structure_changed');
+            }
+          }
+        }
+      }
+    } catch (err) {
+      this.logger.error(`Error getting note info: ${err.message}`);
+    }
+  }
+
+  private isUserInRoom(userId: string, roomName: string): boolean {
+    const userRoom = `user:${userId}`;
+    const socketsInUserRoom = this.server.sockets.adapter.rooms.get(userRoom);
+    const socketsInNoteRoom = this.server.sockets.adapter.rooms.get(roomName);
+
+    if (!socketsInUserRoom || !socketsInNoteRoom) return false;
+
+    for (const socketId of socketsInUserRoom) {
+      if (socketsInNoteRoom.has(socketId)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  @SubscribeMessage('viewing_shared_items')
+  handleViewingSharedItems(@MessageBody() payload: any): void {
+    try {
+      const { userId, isViewing } = payload;
+      if (!userId) return;
+
+      console.log(
+        `User ${userId} ${isViewing ? 'started' : 'stopped'} viewing shared items`,
+      );
+
+      // Cập nhật trạng thái xem shared items
+      if (isViewing) {
+        this.usersViewingSharedItems.add(userId);
+      } else {
+        this.usersViewingSharedItems.delete(userId);
+      }
+    } catch (error) {
+      console.error('Error handling viewing shared items:', error.message);
+    }
+  }
+
+  /**
+   * Kiểm tra xem người dùng có đang xem shared items không
+   * @param userId ID của người dùng
+   * @returns true nếu người dùng đang xem shared items, ngược lại false
+   */
+  private isUserViewingSharedItems(userId: string): boolean {
+    return this.usersViewingSharedItems.has(userId);
   }
 
   @SubscribeMessage('folder_deleted')
-  handleFolderDeleted(
-    @MessageBody() data: { folderId: string },
+  async handleFolderDeleted(
+    @MessageBody() data: { folderId: string; userId: string },
     @ConnectedSocket() client: Socket,
   ) {
     this.logger.log(
       `Broadcasting folder_deleted event for folderId: ${data.folderId}`,
     );
 
-    this.server.emit('folder_deleted', {
-      folderId: data.folderId,
-    });
+    try {
+      const ownerRoom = `user:${data.userId.toString()}`;
 
-    setTimeout(() => {
-      this.server.emit('folder_structure_changed');
-    }, 100);
+      this.server.to(ownerRoom).emit('folder_deleted', {
+        folderId: data.folderId,
+      });
+
+      setTimeout(() => {
+        this.server.to(ownerRoom).emit('folder_structure_changed');
+      }, 100);
+
+      const shareInfo = await this.noteService.getFolderShareInfo(
+        data.folderId,
+      );
+
+      if (
+        shareInfo &&
+        shareInfo.shared_with &&
+        shareInfo.shared_with.length > 0
+      ) {
+        for (const sharedUser of shareInfo.shared_with) {
+          const userRoom = `user:${sharedUser.user_id.toString()}`;
+          this.server.to(userRoom).emit('folder_deleted', {
+            folderId: data.folderId,
+          });
+          setTimeout(() => {
+            this.server.to(userRoom).emit('folder_structure_changed');
+          }, 100);
+        }
+      }
+    } catch (err) {
+      this.logger.error(`Error in folder_deleted: ${err.message}`);
+    }
+  }
+
+  @SubscribeMessage('folder_renamed')
+  async handleFolderRenamed(
+    @MessageBody() data: { folderId: string; newName: string; userId: string },
+    @ConnectedSocket() client: Socket,
+  ) {
+    this.logger.log(
+      `Broadcasting folder_renamed event for folderId: ${data.folderId}`,
+    );
+
+    try {
+      const ownerRoom = `user:${data.userId.toString()}`;
+
+      this.server.to(ownerRoom).emit('folder_renamed', {
+        folderId: data.folderId,
+        newName: data.newName,
+      });
+
+      this.server.to(ownerRoom).emit('folder_structure_changed');
+
+      const shareInfo = await this.noteService.getFolderShareInfo(
+        data.folderId,
+      );
+
+      if (
+        shareInfo &&
+        shareInfo.shared_with &&
+        shareInfo.shared_with.length > 0
+      ) {
+        for (const sharedUser of shareInfo.shared_with) {
+          const userRoom = `user:${sharedUser.user_id.toString()}`;
+          this.server.to(userRoom).emit('folder_renamed', {
+            folderId: data.folderId,
+            newName: data.newName,
+          });
+          this.server.to(userRoom).emit('folder_structure_changed');
+        }
+      }
+    } catch (err) {
+      this.logger.error(`Error in folder_renamed: ${err.message}`);
+    }
   }
 
   @SubscribeMessage('folder_structure_changed')
-  handleFolderStructureChanged(@ConnectedSocket() client: Socket) {
-    this.logger.log('Broadcasting folder_structure_changed event');
+  handleFolderStructureChanged(@MessageBody() payload: any): void {
+    try {
+      const { userId } = payload;
+      if (!userId) return;
 
-    client.broadcast.emit('folder_structure_changed');
+      // Kiểm tra người dùng có đang xem shared items không
+      const isViewingShared = this.usersViewingSharedItems.has(userId);
+      console.log(
+        `User ${userId} folder_structure_changed (viewing shared: ${isViewingShared})`,
+      );
+
+      // Gửi sự kiện đến phòng của người dùng
+      this.server
+        .to(`user:${userId}`)
+        .emit('folder_structure_changed', { isSharedView: isViewingShared });
+    } catch (error) {
+      console.error('Error handling folder structure changed:', error.message);
+    }
+  }
+
+  @SubscribeMessage('join_user_room')
+  handleJoinUserRoom(
+    @MessageBody() data: { userId: string },
+    @ConnectedSocket() client: Socket,
+  ) {
+    if (!data.userId) return;
+
+    const roomName = `user:${data.userId.toString()}`;
+    client.join(roomName);
+    this.logger.log(`User ${data.userId} joined room ${roomName}`);
+  }
+
+  @SubscribeMessage('leave_user_room')
+  handleLeaveUserRoom(
+    @MessageBody() data: { userId: string },
+    @ConnectedSocket() client: Socket,
+  ) {
+    if (!data.userId) return;
+
+    const roomName = `user:${data.userId.toString()}`;
+    client.leave(roomName);
+    this.logger.log(`User ${data.userId} left room ${roomName}`);
+  }
+
+  @SubscribeMessage('note_shared')
+  handleNoteShared(
+    @MessageBody()
+    data: { noteId: string; sharedWithUserId: string; userId: string },
+    @ConnectedSocket() client: Socket,
+  ) {
+    this.logger.log(
+      `Broadcasting note_shared event for noteId: ${data.noteId} with user: ${data.sharedWithUserId}`,
+    );
+
+    const userRoom = `user:${data.sharedWithUserId.toString()}`;
+
+    const noteRoom = `note:${data.noteId}`;
+
+    const socketsInUserRoom = this.server.sockets.adapter.rooms.get(userRoom);
+
+    if (socketsInUserRoom) {
+      for (const socketId of socketsInUserRoom) {
+        const socket = this.server.sockets.sockets.get(socketId);
+        if (socket) {
+          socket.join(noteRoom);
+          this.logger.log(
+            `Added user ${data.sharedWithUserId} to note room ${noteRoom}`,
+          );
+
+          const clientInfo = this.clientData.get(socketId);
+          if (clientInfo) {
+            clientInfo.noteIds.add(data.noteId);
+            clientInfo.lastActive = Date.now();
+          }
+        }
+      }
+    }
+
+    this.server.to(userRoom).emit('note_shared_with_user', {
+      noteId: data.noteId,
+      userId: data.sharedWithUserId,
+    });
+
+    this.server.to(userRoom).emit('folder_structure_changed');
+  }
+
+  @SubscribeMessage('folder_shared')
+  handleFolderShared(
+    @MessageBody()
+    data: { folderId: string; sharedWithUserId: string; userId: string },
+    @ConnectedSocket() client: Socket,
+  ) {
+    this.logger.log(
+      `Broadcasting folder_shared event for folderId: ${data.folderId} with user: ${data.sharedWithUserId}`,
+    );
+
+    const userRoom = `user:${data.sharedWithUserId.toString()}`;
+
+    this.server.to(userRoom).emit('folder_shared_with_user', {
+      folderId: data.folderId,
+      userId: data.sharedWithUserId,
+    });
+
+    this.server.to(userRoom).emit('folder_structure_changed');
   }
 
   async beforeApplicationShutdown() {
