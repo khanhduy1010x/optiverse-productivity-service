@@ -197,13 +197,20 @@ export class ShareService {
     if (!updatedShare) {
       throw new AppException(ErrorCode.UPDATE_SHARE_FAILED);
     }
-
+    console.log('error: ', updatedShare);
     if (updatedShare.shared_with.length === 0) {
+      // Xóa luôn bản ghi share nếu không còn user nào
       await this.shareRepository.deleteShare(updatedShare._id.toString());
+      // Trả về một ShareResponse hợp lệ hoặc null
       return new ShareResponse({
-        ...updatedShare,
+        _id: updatedShare._id,
+        owner_id: updatedShare.owner_id,
+        resource_type: updatedShare.resource_type,
+        resource_id: updatedShare.resource_id,
         shared_with: [],
-      } as Share);
+        createdAt: (updatedShare as any).createdAt || new Date(),
+        updatedAt: (updatedShare as any).updatedAt || new Date(),
+      } as any);
     }
 
     return new ShareResponse(updatedShare);

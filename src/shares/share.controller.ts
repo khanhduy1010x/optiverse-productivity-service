@@ -191,4 +191,16 @@ export class ShareController {
       req.userInfo,
     );
   }
+
+  @Delete('/note/:id/leave')
+  async leaveNoteShare(@Request() req, @Param('id') noteId: string) {
+    const user = req.userInfo as UserDto;
+    return this.shareService.leaveSharedResource('note', noteId, user);
+  }
+
+  @Delete('/folder/:id/leave')
+  async leaveFolderShare(@Request() req, @Param('id') folderId: string) {
+    const user = req.userInfo as UserDto;
+    return this.shareService.leaveSharedResource('folder', folderId, user);
+  }
 }

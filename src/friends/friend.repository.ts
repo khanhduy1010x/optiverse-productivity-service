@@ -174,7 +174,7 @@ export class FriendRepository {
             enrichedFriend.user_id = originalFriendId;
             enrichedFriend.friend_id = originalUserId;
 
-            enrichedFriend.normalized = true;
+            // enrichedFriend.normalized = true;
           }
 
           if (userDetail) {

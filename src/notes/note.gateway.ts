@@ -213,12 +213,10 @@ export class NoteGateway
     @ConnectedSocket() client: Socket,
   ) {
     const roomName = `note:${data.noteId}`;
-    this.logger.log(
-      `Broadcasting note_deleted event for noteId: ${data.noteId}`,
-    );
 
     client.to(roomName).emit('note_deleted', {
       noteId: data.noteId,
+      eventType: 'my_note',
     });
 
     try {
@@ -226,7 +224,10 @@ export class NoteGateway
 
       const ownerRoom = `user:${note.user_id.toString()}`;
 
-      this.server.to(ownerRoom).emit('folder_structure_changed');
+      this.server.to(ownerRoom).emit('folder_structure_changed', {
+        eventType: 'my_note',
+        isSharedView: false,
+      });
 
       const shareInfo = await this.noteService.getShareInfoForNote(data.noteId);
 
@@ -239,8 +240,12 @@ export class NoteGateway
           const userRoom = `user:${sharedUser.user_id.toString()}`;
           this.server.to(userRoom).emit('note_deleted', {
             noteId: data.noteId,
+            eventType: 'shared_note',
           });
-          this.server.to(userRoom).emit('folder_structure_changed');
+          this.server.to(userRoom).emit('folder_structure_changed', {
+            eventType: 'shared_note',
+            isSharedView: true,
+          });
         }
       }
     } catch (err) {
@@ -254,20 +259,21 @@ export class NoteGateway
     @ConnectedSocket() client: Socket,
   ) {
     const roomName = `note:${data.noteId}`;
-    this.logger.log(
-      `Broadcasting note_renamed event for noteId: ${data.noteId}`,
-    );
 
     client.to(roomName).emit('note_renamed', {
       noteId: data.noteId,
       newTitle: data.newTitle,
+      eventType: 'my_note',
     });
 
     try {
       const note = await this.noteService.getNotebyId(data.noteId);
 
       const ownerRoom = `user:${note.user_id.toString()}`;
-      this.server.to(ownerRoom).emit('folder_structure_changed');
+      this.server.to(ownerRoom).emit('folder_structure_changed', {
+        eventType: 'my_note',
+        isSharedView: false,
+      });
 
       const shareInfo = await this.noteService.getShareInfoForNote(data.noteId);
 
@@ -292,8 +298,12 @@ export class NoteGateway
               this.server.to(userRoom).emit('note_renamed', {
                 noteId: data.noteId,
                 newTitle: data.newTitle,
+                eventType: 'shared_note',
               });
-              this.server.to(userRoom).emit('folder_structure_changed');
+              this.server.to(userRoom).emit('folder_structure_changed', {
+                eventType: 'shared_note',
+                isSharedView: true,
+              });
             }
           }
         }
@@ -363,10 +373,14 @@ export class NoteGateway
 
       this.server.to(ownerRoom).emit('folder_deleted', {
         folderId: data.folderId,
+        eventType: 'my_note',
       });
 
       setTimeout(() => {
-        this.server.to(ownerRoom).emit('folder_structure_changed');
+        this.server.to(ownerRoom).emit('folder_structure_changed', {
+          eventType: 'my_note',
+          isSharedView: false,
+        });
       }, 100);
 
       const shareInfo = await this.noteService.getFolderShareInfo(
@@ -382,9 +396,13 @@ export class NoteGateway
           const userRoom = `user:${sharedUser.user_id.toString()}`;
           this.server.to(userRoom).emit('folder_deleted', {
             folderId: data.folderId,
+            eventType: 'shared_note',
           });
           setTimeout(() => {
-            this.server.to(userRoom).emit('folder_structure_changed');
+            this.server.to(userRoom).emit('folder_structure_changed', {
+              eventType: 'shared_note',
+              isSharedView: true,
+            });
           }, 100);
         }
       }
@@ -408,9 +426,13 @@ export class NoteGateway
       this.server.to(ownerRoom).emit('folder_renamed', {
         folderId: data.folderId,
         newName: data.newName,
+        eventType: 'my_note',
       });
 
-      this.server.to(ownerRoom).emit('folder_structure_changed');
+      this.server.to(ownerRoom).emit('folder_structure_changed', {
+        eventType: 'my_note',
+        isSharedView: false,
+      });
 
       const shareInfo = await this.noteService.getFolderShareInfo(
         data.folderId,
@@ -426,8 +448,12 @@ export class NoteGateway
           this.server.to(userRoom).emit('folder_renamed', {
             folderId: data.folderId,
             newName: data.newName,
+            eventType: 'shared_note',
           });
-          this.server.to(userRoom).emit('folder_structure_changed');
+          this.server.to(userRoom).emit('folder_structure_changed', {
+            eventType: 'shared_note',
+            isSharedView: true,
+          });
         }
       }
     } catch (err) {
@@ -447,10 +473,11 @@ export class NoteGateway
         `User ${userId} folder_structure_changed (viewing shared: ${isViewingShared})`,
       );
 
-      // Gửi sự kiện đến phòng của người dùng
-      this.server
-        .to(`user:${userId}`)
-        .emit('folder_structure_changed', { isSharedView: isViewingShared });
+      // Gửi sự kiện đến phòng của người dùng với context rõ ràng
+      this.server.to(`user:${userId}`).emit('folder_structure_changed', {
+        isSharedView: isViewingShared,
+        eventType: isViewingShared ? 'shared_note' : 'my_note',
+      });
     } catch (error) {
       console.error('Error handling folder structure changed:', error.message);
     }
@@ -517,9 +544,13 @@ export class NoteGateway
     this.server.to(userRoom).emit('note_shared_with_user', {
       noteId: data.noteId,
       userId: data.sharedWithUserId,
+      eventType: 'shared_note',
     });
 
-    this.server.to(userRoom).emit('folder_structure_changed');
+    this.server.to(userRoom).emit('folder_structure_changed', {
+      eventType: 'shared_note',
+      isSharedView: true,
+    });
   }
 
   @SubscribeMessage('folder_shared')
@@ -537,9 +568,75 @@ export class NoteGateway
     this.server.to(userRoom).emit('folder_shared_with_user', {
       folderId: data.folderId,
       userId: data.sharedWithUserId,
+      eventType: 'shared_note',
     });
 
-    this.server.to(userRoom).emit('folder_structure_changed');
+    this.server.to(userRoom).emit('folder_structure_changed', {
+      eventType: 'shared_note',
+      isSharedView: true,
+    });
+  }
+
+  @SubscribeMessage('note_user_removed')
+  async handleNoteUserRemoved(
+    @MessageBody()
+    data: { noteId: string; removedUserId: string; userId: string },
+    @ConnectedSocket() client: Socket,
+  ) {
+    const removedUserRoom = `user:${data.removedUserId}`;
+
+    // Kiểm tra người dùng có đang xem shared items không
+    const isViewingShared = this.isUserViewingSharedItems(data.removedUserId);
+
+    this.logger.log(
+      `User ${data.removedUserId} was removed from note ${data.noteId} (viewing shared: ${isViewingShared})`,
+    );
+
+    // Gửi permission_changed event với shouldRefreshShared=true như khi thay đổi quyền
+    this.server.to(removedUserRoom).emit('permission_changed', {
+      resourceId: data.noteId,
+      permission: 'none', // Không còn quyền truy cập
+      shouldRefreshShared: true,
+      eventType: 'shared_note',
+    });
+
+    // Thêm sự kiện folder_structure_changed để đảm bảo UI được cập nhật
+    this.server.to(removedUserRoom).emit('folder_structure_changed', {
+      isSharedView: true,
+      eventType: 'shared_note',
+      removedFromShare: true,
+    });
+  }
+
+  @SubscribeMessage('folder_user_removed')
+  async handleFolderUserRemoved(
+    @MessageBody()
+    data: { folderId: string; removedUserId: string; userId: string },
+    @ConnectedSocket() client: Socket,
+  ) {
+    const removedUserRoom = `user:${data.removedUserId}`;
+
+    // Kiểm tra người dùng có đang xem shared items không
+    const isViewingShared = this.isUserViewingSharedItems(data.removedUserId);
+
+    this.logger.log(
+      `User ${data.removedUserId} was removed from folder ${data.folderId} (viewing shared: ${isViewingShared})`,
+    );
+
+    // Gửi permission_changed event với shouldRefreshShared=true như khi thay đổi quyền
+    this.server.to(removedUserRoom).emit('permission_changed', {
+      resourceId: data.folderId,
+      permission: 'none', // Không còn quyền truy cập
+      shouldRefreshShared: true,
+      eventType: 'shared_note',
+    });
+
+    // Thêm sự kiện folder_structure_changed để đảm bảo UI được cập nhật
+    this.server.to(removedUserRoom).emit('folder_structure_changed', {
+      isSharedView: true,
+      eventType: 'shared_note',
+      removedFromShare: true,
+    });
   }
 
   async beforeApplicationShutdown() {

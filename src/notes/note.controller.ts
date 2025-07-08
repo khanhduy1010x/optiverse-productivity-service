@@ -30,7 +30,9 @@ export class NoteController {
   }
 
   @Get('folder/:folderId')
-  async getNotesByFolderID(@Param('folderId') folderId: string): Promise<ApiResponse<Note[]>> {
+  async getNotesByFolderID(
+    @Param('folderId') folderId: string,
+  ): Promise<ApiResponse<Note[]>> {
     const notes = await this.noteService.getNotesByFolderID(folderId);
     return new ApiResponse<Note[]>(notes);
   }
@@ -68,5 +70,13 @@ export class NoteController {
   async deleteNote(@Param('id') noteId: string): Promise<ApiResponse<void>> {
     await this.noteService.deleteNote(noteId);
     return new ApiResponse<void>();
+  }
+
+  @Get('/:noteId')
+  async getNoteById(
+    @Param('noteId') noteId: string,
+  ): Promise<ApiResponse<Note>> {
+    const note = await this.noteService.getNotebyId(noteId);
+    return new ApiResponse<Note>(note);
   }
 }
