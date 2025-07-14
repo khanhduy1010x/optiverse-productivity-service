@@ -19,10 +19,21 @@ import {
   NoteWithType,
 } from '../note-folders/note-folder.schema';
 import { UserHttpClient } from 'src/http-axios/user-http.client';
+import {
+  NotificationHttpClient,
+  ActionType,
+} from 'src/http-axios/notification-http.client';
 import { NoteGateway } from '../notes/note.gateway';
 import { NoteRepository } from '../notes/note.repository';
 import { NoteFolderRepository } from '../note-folders/note-folder.repository';
 import { ApiResponse } from 'src/common/api-response';
+
+interface UserResponse {
+  user_id: string;
+  email: string;
+  full_name?: string;
+  avatar_url?: string;
+}
 
 @Injectable()
 export class ShareService {
@@ -33,6 +44,7 @@ export class ShareService {
     private readonly userHttpClient: UserHttpClient,
     private readonly noteRepository: NoteRepository,
     private readonly noteFolderRepository: NoteFolderRepository,
+    private readonly notificationHttpClient: NotificationHttpClient,
     private readonly noteGateway?: NoteGateway,
   ) {}
 
@@ -47,6 +59,42 @@ export class ShareService {
     users: ShareUserDto[],
   ): Promise<ShareResponse> {
     await this.validateResourceOwnership(resourceType, resourceId, ownerId);
+
+    let resourceName = '';
+    if (resourceType === 'note') {
+      try {
+        const note = await this.noteRepository.getNoteByID(resourceId);
+        if (note) {
+          resourceName = note.title;
+        }
+      } catch (error) {
+        console.error('Error fetching note:', error);
+      }
+    } else if (resourceType === 'folder') {
+      try {
+        const folder =
+          await this.noteFolderRepository.getNoteFolderById(resourceId);
+        if (folder) {
+          resourceName = folder.name;
+        }
+      } catch (error) {
+        console.error('Error fetching folder:', error);
+      }
+    }
+
+    let ownerInfo: UserResponse | null = null;
+    try {
+      const ownerInfoResponse = await this.userHttpClient.getUsersByIds([
+        ownerId,
+      ]);
+      if (ownerInfoResponse && ownerInfoResponse.length > 0) {
+        ownerInfo = ownerInfoResponse[0];
+      }
+    } catch (error) {
+      console.error('Error fetching owner info:', error);
+    }
+
+    const ownerName = ownerInfo?.full_name || 'User';
 
     const existingShare = await this.shareRepository.findShareByResourceId(
       resourceType,
@@ -75,6 +123,13 @@ export class ShareService {
         }
 
         share = updatedShare;
+
+        this.sendShareNotificationEmails(
+          newUsers,
+          resourceType,
+          resourceName,
+          ownerName,
+        );
       } else {
         share = existingShare;
       }
@@ -85,9 +140,57 @@ export class ShareService {
         resourceId,
         users,
       );
+
+      this.sendShareNotificationEmails(
+        users,
+        resourceType,
+        resourceName,
+        ownerName,
+      );
     }
 
     return new ShareResponse(share);
+  }
+
+  private async sendShareNotificationEmails(
+    users: ShareUserDto[],
+    resourceType: string,
+    resourceName: string,
+    ownerName: string,
+  ): Promise<void> {
+    try {
+      const userIds = users.map((user) => user.user_id);
+      const userInfos = await this.userHttpClient.getUsersByIds(userIds);
+
+      if (!userInfos || userInfos.length === 0) {
+        console.error('No user information found for notification');
+        return;
+      }
+
+      const permissionMap = new Map<string, string>();
+      users.forEach((user) => {
+        permissionMap.set(user.user_id, user.permission);
+      });
+
+      for (const userInfo of userInfos) {
+        if (userInfo.email) {
+          const permission = permissionMap.get(userInfo.user_id) || 'view';
+
+          await this.notificationHttpClient.sendShareNotification(
+            userInfo.email,
+            resourceType,
+            resourceName,
+            ownerName,
+            permission,
+            userInfo.user_id,
+          );
+
+          console.log(`Share notification email sent to ${userInfo.email}`);
+        }
+      }
+    } catch (error) {
+      console.error('Error sending share notification emails:', error);
+    }
   }
 
   async updateSharedUsers(
@@ -97,6 +200,42 @@ export class ShareService {
     users: ShareUserDto[],
   ): Promise<ShareResponse> {
     await this.validateResourceOwnership(resourceType, resourceId, ownerId);
+
+    let resourceName = '';
+    if (resourceType === 'note') {
+      try {
+        const note = await this.noteRepository.getNoteByID(resourceId);
+        if (note) {
+          resourceName = note.title;
+        }
+      } catch (error) {
+        console.error('Error fetching note:', error);
+      }
+    } else if (resourceType === 'folder') {
+      try {
+        const folder =
+          await this.noteFolderRepository.getNoteFolderById(resourceId);
+        if (folder) {
+          resourceName = folder.name;
+        }
+      } catch (error) {
+        console.error('Error fetching folder:', error);
+      }
+    }
+
+    let ownerInfo: UserResponse | null = null;
+    try {
+      const ownerInfoResponse = await this.userHttpClient.getUsersByIds([
+        ownerId,
+      ]);
+      if (ownerInfoResponse && ownerInfoResponse.length > 0) {
+        ownerInfo = ownerInfoResponse[0];
+      }
+    } catch (error) {
+      console.error('Error fetching owner info:', error);
+    }
+
+    const ownerName = ownerInfo?.full_name || 'User';
 
     const existingShare = await this.shareRepository.findShareByResourceId(
       resourceType,
@@ -167,9 +306,70 @@ export class ShareService {
           error.message,
         );
       }
+
+      this.sendPermissionChangedEmails(
+        usersWithChangedPermissions,
+        resourceType,
+        resourceName,
+        ownerName,
+      );
     }
 
     return new ShareResponse(updatedShare);
+  }
+
+  private async sendPermissionChangedEmails(
+    users: ShareUserDto[],
+    resourceType: string,
+    resourceName: string,
+    ownerName: string,
+  ): Promise<void> {
+    try {
+      const userIds = users.map((user) => user.user_id);
+      const userInfos = await this.userHttpClient.getUsersByIds(userIds);
+
+      if (!userInfos || userInfos.length === 0) {
+        console.error(
+          'No user information found for permission change notification',
+        );
+        return;
+      }
+
+      const permissionMap = new Map<string, string>();
+      users.forEach((user) => {
+        permissionMap.set(user.user_id, user.permission);
+      });
+
+      for (const userInfo of userInfos) {
+        if (userInfo.email) {
+          const permission = permissionMap.get(userInfo.user_id) || 'view';
+          const subject = `Permission changed`;
+
+          const content = `
+            ${ownerName} has changed your access permission for the ${resourceType === 'note' ? 'note' : 'folder'} "${resourceName}".\n
+            You now have ${permission === 'view' ? 'view' : 'edit'} permission for this resource.\n
+            Please log in to the application to access it.
+          `;
+
+          await this.notificationHttpClient.sendEmail(
+            userInfo.email,
+            subject,
+            content,
+            ActionType.NOTE,
+            userInfo.user_id,
+          );
+
+          console.log(
+            `Permission change notification email sent to ${userInfo.email}`,
+          );
+        }
+      }
+    } catch (error) {
+      console.error(
+        'Error sending permission change notification emails:',
+        error,
+      );
+    }
   }
 
   async removeUserFromShare(
@@ -179,6 +379,54 @@ export class ShareService {
     userId: string,
   ): Promise<ShareResponse> {
     await this.validateResourceOwnership(resourceType, resourceId, ownerId);
+
+    let resourceName = '';
+    if (resourceType === 'note') {
+      try {
+        const note = await this.noteRepository.getNoteByID(resourceId);
+        if (note) {
+          resourceName = note.title;
+        }
+      } catch (error) {
+        console.error('Error fetching note:', error);
+      }
+    } else if (resourceType === 'folder') {
+      try {
+        const folder =
+          await this.noteFolderRepository.getNoteFolderById(resourceId);
+        if (folder) {
+          resourceName = folder.name;
+        }
+      } catch (error) {
+        console.error('Error fetching folder:', error);
+      }
+    }
+
+    let ownerInfo: UserResponse | null = null;
+    try {
+      const ownerInfoResponse = await this.userHttpClient.getUsersByIds([
+        ownerId,
+      ]);
+      if (ownerInfoResponse && ownerInfoResponse.length > 0) {
+        ownerInfo = ownerInfoResponse[0];
+      }
+    } catch (error) {
+      console.error('Error fetching owner info:', error);
+    }
+
+    const ownerName = ownerInfo?.full_name || 'User';
+
+    let removedUserInfo: UserResponse | null = null;
+    try {
+      const userInfoResponse = await this.userHttpClient.getUsersByIds([
+        userId,
+      ]);
+      if (userInfoResponse && userInfoResponse.length > 0) {
+        removedUserInfo = userInfoResponse[0];
+      }
+    } catch (error) {
+      console.error('Error fetching removed user info:', error);
+    }
 
     const existingShare = await this.shareRepository.findShareByResourceId(
       resourceType,
@@ -197,11 +445,39 @@ export class ShareService {
     if (!updatedShare) {
       throw new AppException(ErrorCode.UPDATE_SHARE_FAILED);
     }
+
+    if (removedUserInfo && removedUserInfo.email) {
+      try {
+        const subject = `Access revoked`;
+
+        const content = `
+          ${ownerName} has revoked your access to the ${resourceType === 'note' ? 'note' : 'folder'} "${resourceName}".\n
+          You will no longer be able to access this resource.
+        `;
+
+        await this.notificationHttpClient.sendEmail(
+          removedUserInfo.email,
+          subject,
+          content,
+          ActionType.NOTE,
+          removedUserInfo.user_id,
+        );
+
+        console.log(
+          `Access removal notification email sent to ${removedUserInfo.email}`,
+        );
+      } catch (error) {
+        console.error(
+          'Error sending access removal notification email:',
+          error,
+        );
+      }
+    }
+
     console.log('error: ', updatedShare);
     if (updatedShare.shared_with.length === 0) {
-      // Xóa luôn bản ghi share nếu không còn user nào
       await this.shareRepository.deleteShare(updatedShare._id.toString());
-      // Trả về một ShareResponse hợp lệ hoặc null
+
       return new ShareResponse({
         _id: updatedShare._id,
         owner_id: updatedShare.owner_id,
@@ -608,7 +884,6 @@ export class ShareService {
     userInfo: any,
   ): Promise<ApiResponse<null>> {
     try {
-      // Kiểm tra xem resource có tồn tại không
       let resource;
       if (resourceType === 'note') {
         resource = await this.noteRepository.getNoteByID(resourceId);
@@ -621,7 +896,6 @@ export class ShareService {
         throw new NotFoundException(`${resourceType} not found`);
       }
 
-      // Tìm share document
       const shareDoc = await this.shareRepository.findShareByResourceId(
         resourceType,
         resourceId,
@@ -631,7 +905,6 @@ export class ShareService {
         throw new NotFoundException('Share document not found');
       }
 
-      // Kiểm tra xem người dùng có trong danh sách shared_with không
       const userIndex = shareDoc.shared_with.findIndex(
         (user) => user.user_id.toString() === userInfo.userId,
       );
@@ -640,14 +913,11 @@ export class ShareService {
         throw new BadRequestException('User is not in shared list');
       }
 
-      // Loại bỏ người dùng khỏi danh sách shared_with
       shareDoc.shared_with.splice(userIndex, 1);
 
-      // Nếu không còn ai được share, xóa document share
       if (shareDoc.shared_with.length === 0) {
         await this.shareRepository.deleteShare(shareDoc._id.toString());
       } else {
-        // Ngược lại, cập nhật document share
         await this.shareRepository.updateShare(
           shareDoc._id.toString(),
           shareDoc.shared_with.map((user) => ({

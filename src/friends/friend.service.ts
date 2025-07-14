@@ -26,7 +26,9 @@ export class FriendService {
     return await this.friendRepository.getFriendsByUserID(userId);
   }
 
-  async createFriend(createFriendDto: CreateFriendRequest): Promise<FriendResponse> {
+  async createFriend(
+    createFriendDto: CreateFriendRequest,
+  ): Promise<FriendResponse> {
     const friend = await this.friendRepository.createFriend(createFriendDto);
     return new FriendResponse(friend);
   }
@@ -35,7 +37,10 @@ export class FriendService {
     friendId: string,
     updateFriendDto: UpdateFriendRequest,
   ): Promise<FriendResponse> {
-    const friend = await this.friendRepository.updateFriend(friendId, updateFriendDto);
+    const friend = await this.friendRepository.updateFriend(
+      friendId,
+      updateFriendDto,
+    );
     return new FriendResponse(friend);
   }
 
@@ -55,15 +60,21 @@ export class FriendService {
     return this.friendRepository.acceptFriend(id);
   }
 
-  async viewAllFriends(userId: string): Promise<(Friend | EnrichedFriendRequest)[]> {
+  async viewAllFriends(
+    userId: string,
+  ): Promise<(Friend | EnrichedFriendRequest)[]> {
     return this.friendRepository.viewAllFriends(userId);
   }
 
-  async viewAllPending(userId: string): Promise<(Friend | EnrichedFriendRequest)[]> {
+  async viewAllPending(
+    userId: string,
+  ): Promise<(Friend | EnrichedFriendRequest)[]> {
     return this.friendRepository.viewAllPending(userId);
   }
 
-  async viewAllSent(userId: string): Promise<(Friend | EnrichedFriendRequest)[]> {
+  async viewAllSent(
+    userId: string,
+  ): Promise<(Friend | EnrichedFriendRequest)[]> {
     return this.friendRepository.viewAllSent(userId);
   }
 
