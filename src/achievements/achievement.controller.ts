@@ -1,19 +1,21 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, Request, UseInterceptors, UploadedFile } from '@nestjs/common';
 import { AchievementService } from './achievement.service';
 import { ApiResponse } from 'src/common/api-response';
 import { AchievementResponse } from './dto/response/AchievementResponse.dto';
 import { CreateAchievementRequest } from './dto/request/CreateAchievementRequest.dto';
 import { UpdateAchievementRequest } from './dto/request/UpdateAchievementRequest.dto';
 import { Achievement } from './achievement.schema';
-import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiTags, ApiConsumes } from '@nestjs/swagger';
 import { ConditionTypeEnum } from '../achievement-type/achievement-type.schema';
 import { UserDto } from 'src/user-dto/user.dto';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { CloudinaryService } from '../common/cloudinary/cloudinary.service';
 
 @ApiBearerAuth('access-token')
 @ApiTags('achievements')
 @Controller('/achievement')
 export class AchievementController {
-  constructor(private readonly achievementService: AchievementService) {}
+  constructor(private readonly achievementService: AchievementService, private readonly cloudinaryService: CloudinaryService) {}
 
   @Get()
   @ApiOperation({ summary: 'Get all achievements' })
@@ -31,22 +33,48 @@ export class AchievementController {
   }
 
   @Post()
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Create a new achievement' })
   @ApiBody({ type: CreateAchievementRequest })
-  async create(@Body() createAchievementDto: CreateAchievementRequest): Promise<ApiResponse<AchievementResponse>> {
-    const achievement = await this.achievementService.create(createAchievementDto);
+  async create(
+    @UploadedFile() file: Express.Multer.File,
+    @Body() createAchievementDto: CreateAchievementRequest,
+  ): Promise<ApiResponse<AchievementResponse>> {
+    let iconUrl: string | undefined = undefined;
+    if (file) {
+      iconUrl = await this.cloudinaryService.uploadFile(file, 'achievements');
+    }
+    const achievement = await this.achievementService.create({
+      ...createAchievementDto,
+      icon_url: iconUrl,
+    });
     return new ApiResponse(new AchievementResponse(achievement));
   }
 
   @Put(':id')
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Update an achievement' })
   @ApiParam({ name: 'id', description: 'Achievement ID' })
   @ApiBody({ type: UpdateAchievementRequest })
   async update(
     @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File,
     @Body() updateAchievementDto: UpdateAchievementRequest,
   ): Promise<ApiResponse<AchievementResponse>> {
-    const achievement = await this.achievementService.update(id, updateAchievementDto);
+    let iconUrl: string | undefined = undefined;
+    if (file) {
+      iconUrl = await this.cloudinaryService.uploadFile(file, 'achievements');
+    } else {
+      // Lấy icon_url cũ nếu không upload file mới
+      const current = await this.achievementService.findById(id);
+      iconUrl = current.icon_url;
+    }
+    const achievement = await this.achievementService.update(id, {
+      ...updateAchievementDto,
+      icon_url: iconUrl,
+    });
     return new ApiResponse(new AchievementResponse(achievement));
   }
 
