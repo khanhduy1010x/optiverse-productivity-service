@@ -23,12 +23,6 @@ export class AchievementType {
 
   @Prop({ required: true })
   condition_value: number;
-
-  @Prop({ default: () => new Date() })
-  created_at: Date;
-
-  @Prop({ default: () => new Date() })
-  updated_at: Date;
 }
 
 export const AchievementTypeSchema = SchemaFactory.createForClass(AchievementType); 

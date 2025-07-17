@@ -13,6 +13,7 @@ import { AchievementTypeController } from '../achievement-type/achievement-type.
 import { AchievementTypeService } from '../achievement-type/achievement-type.service';
 import { FriendModule } from '../friends/friend.module';
 import { UserAchievementModule } from '../user-achievements/user-achievement.module';
+import { CloudinaryModule } from '../common/cloudinary/cloudinary.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { UserAchievementModule } from '../user-achievements/user-achievement.mod
     forwardRef(() => TasksModule),
     forwardRef(() => FriendModule),
     forwardRef(() => UserAchievementModule),
+    CloudinaryModule,
   ],
   controllers: [AchievementController, AchievementTypeController],
   providers: [
