@@ -9,6 +9,7 @@ import { ConditionTypeEnum } from '../achievement-type/achievement-type.schema';
 import { UserAchievementRepository } from '../user-achievements/user-achievement.repository';
 import { TaskRepository } from '../tasks/task.repository';
 import { FriendRepository } from '../friends/friend.repository';
+import { StreakRepository } from '../streaks/streak.repository';
 
 @Injectable()
 export class AchievementService {
@@ -21,6 +22,8 @@ export class AchievementService {
     private readonly taskRepository: TaskRepository,
     @Inject(forwardRef(() => FriendRepository))
     private readonly friendRepository: FriendRepository,
+    @Inject(forwardRef(() => StreakRepository))
+    private readonly streakRepository: StreakRepository,
   ) {}
 
   /**
@@ -116,6 +119,79 @@ export class AchievementService {
     // Find achievements that match the condition
     const unlockedAchievementTypes = achievementTypes.filter(
       type => friendCount >= type.condition_value
+    );
+    
+    if (unlockedAchievementTypes.length === 0) {
+      return [];
+    }
+
+    // Get achievement IDs
+    const achievementIds = unlockedAchievementTypes.map(type => 
+      type.achievement_id.toString()
+    );
+
+    return this.unlockAchievements(userId, achievementIds);
+  }
+  
+  /**
+   * Check and unlock all streak-related achievements for a user
+   * @returns Array of newly unlocked achievements
+   */
+  async checkStreakAchievements(userId: string): Promise<Achievement[]> {
+    const streak = await this.streakRepository.getStreakByUserID(userId);
+    
+    if (!streak) {
+      return [];
+    }
+    
+    // Define the streak types to check
+    const streakChecks = [
+      {
+        type: ConditionTypeEnum.LOGIN_STREAK,
+        value: streak.loginStreak || 0,
+      },
+      {
+        type: ConditionTypeEnum.TASK_STREAK,
+        value: streak.taskStreak || 0,
+      },
+      {
+        type: ConditionTypeEnum.FLASHCARD_STREAK,
+        value: streak.flashcardStreak || 0,
+      }
+    ];
+    
+    let newAchievements: Achievement[] = [];
+    
+    // Check each streak type
+    for (const check of streakChecks) {
+      const unlockedAchievements = await this.processStreakAchievement(userId, check.type, check.value);
+      if (unlockedAchievements.length > 0) {
+        newAchievements = [...newAchievements, ...unlockedAchievements];
+      }
+    }
+    
+    return newAchievements;
+  }
+  
+  /**
+   * Process a specific streak achievement check
+   * @returns Array of newly unlocked achievements
+   */
+  private async processStreakAchievement(
+    userId: string, 
+    conditionType: ConditionTypeEnum, 
+    streakValue: number
+  ): Promise<Achievement[]> {
+    // Get all achievement types related to this streak type
+    const achievementTypes = await this.achievementTypeRepository.findByConditionType(conditionType);
+    
+    if (!achievementTypes || achievementTypes.length === 0) {
+      return [];
+    }
+
+    // Find achievements that match the condition
+    const unlockedAchievementTypes = achievementTypes.filter(
+      type => streakValue >= type.condition_value
     );
     
     if (unlockedAchievementTypes.length === 0) {
