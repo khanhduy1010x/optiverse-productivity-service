@@ -14,6 +14,7 @@ import { AchievementTypeService } from '../achievement-type/achievement-type.ser
 import { FriendModule } from '../friends/friend.module';
 import { UserAchievementModule } from '../user-achievements/user-achievement.module';
 import { CloudinaryModule } from '../common/cloudinary/cloudinary.module';
+import { StreakModule } from '../streaks/streak.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { CloudinaryModule } from '../common/cloudinary/cloudinary.module';
     forwardRef(() => TasksModule),
     forwardRef(() => FriendModule),
     forwardRef(() => UserAchievementModule),
+    forwardRef(() => StreakModule),
     CloudinaryModule,
   ],
   controllers: [AchievementController, AchievementTypeController],

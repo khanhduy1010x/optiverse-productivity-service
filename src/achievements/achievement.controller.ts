@@ -105,4 +105,14 @@ export class AchievementController {
     const newAchievements = await this.achievementService.checkFriendsCountAchievements(user.userId);
     return new ApiResponse(newAchievements);
   }
+
+  @Post('check-streak-achievements')
+  @ApiOperation({ summary: 'Check and unlock all streak-related achievements for a user' })
+  async checkStreakAchievements(
+    @Request() req
+  ): Promise<ApiResponse<Achievement[]>> {
+    const user = req.userInfo as UserDto;
+    const newAchievements = await this.achievementService.checkStreakAchievements(user.userId);
+    return new ApiResponse(newAchievements);
+  }
 }
