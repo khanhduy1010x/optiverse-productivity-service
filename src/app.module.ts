@@ -21,6 +21,9 @@ import { ReviewSessionModule } from './review_sessions/review-session.module';
 import { TaskEventModule } from './task-events/task-event.module';
 import { UserAchievementModule } from './user-achievements/user-achievement.module';
 import { ShareModule } from './shares/share.module';
+import { StreakModule } from './streaks/streak.module';
+import { AuthMiddleware } from './midlleware/auth.middleware';
+import { CloudinaryModule } from './common/cloudinary/cloudinary.module';
 
 @Module({
   imports: [
@@ -51,6 +54,8 @@ import { ShareModule } from './shares/share.module';
     UserAchievementModule,
     AxiosClientModule,
     ShareModule,
+    StreakModule,
+    CloudinaryModule,
   ],
   controllers: [AppController],
   providers: [
@@ -64,5 +69,6 @@ import { ShareModule } from './shares/share.module';
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     consumer.apply(LoggerMiddleware).forRoutes('*');
+    consumer.apply(AuthMiddleware).forRoutes('*');
   }
 }
