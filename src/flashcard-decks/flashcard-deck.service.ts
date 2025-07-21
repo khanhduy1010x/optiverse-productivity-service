@@ -62,4 +62,30 @@ export class FlashcardDeckService {
     await this.flashcardService.deleteManyByIds(ids);
     await this.flashcardDeckRepository.deleteFlashcardDeck(flashcardDeckId);
   }
+
+  async duplicateFlashcardDeck(deckId: string, userId: string): Promise<FlashcardDeckResponse> {
+    // Lấy thông tin deck gốc
+    const originalDeck = await this.flashcardDeckRepository.getFlashcardDeckById(deckId);
+    if (!originalDeck) {
+      throw new Error('Deck not found');
+    }
+    // Tạo deck mới với title thêm hậu tố "(Copy)"
+    const newDeck = await this.flashcardDeckRepository.createFlashcardDeck(
+      {
+        title: originalDeck.flashcardDeck.title + ' (Copy)',
+      },
+      userId,
+    );
+    // Lấy toàn bộ flashcard của deck gốc
+    const flashcards = await this.flashcardService.getFlashcardsByDeckID(deckId);
+    // Tạo flashcard mới cho deck mới
+    for (const fc of flashcards) {
+      await this.flashcardService.createFlashcard(userId, {
+        deck_id: newDeck._id,
+        front: fc.front,
+        back: fc.back,
+      });
+    }
+    return new FlashcardDeckResponse(newDeck);
+  }
 }

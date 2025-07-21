@@ -87,6 +87,20 @@ export class FlashcardDeckController {
     name: 'id',
     type: String,
   })
+  @Post('/:id/duplicate')
+  async duplicateFlashcardDeck(
+    @Param('id') flashcardDeckId: string,
+    @Request() req,
+  ): Promise<ApiResponse<FlashcardDeckResponse>> {
+    const user = req.userInfo as UserDto;
+    const duplicatedDeck = await this.flashcardDeckService.duplicateFlashcardDeck(flashcardDeckId, user.userId);
+    return new ApiResponse<FlashcardDeckResponse>(duplicatedDeck);
+  }
+
+  @ApiParam({
+    name: 'id',
+    type: String,
+  })
   @Delete('/:id')
   async deleteFlashcardDeck(@Param('id') flashcardDeckId: string): Promise<ApiResponse<void>> {
     await this.flashcardDeckService.deleteFlashcardDeck(flashcardDeckId);
