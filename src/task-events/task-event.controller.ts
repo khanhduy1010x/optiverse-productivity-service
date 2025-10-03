@@ -8,6 +8,7 @@ import { TaskEvent } from './task-event.schema';
 import { ApiBearerAuth } from '@nestjs/swagger';
 import { UserDto } from 'src/user-dto/user.dto';
 
+
 @ApiBearerAuth('access-token')
 @Controller('/task-event')
 export class TaskEventController {
@@ -19,12 +20,13 @@ export class TaskEventController {
     return new ApiResponse<TaskEvent[]>(taskEvents);
   }
 
-  // Lấy tất cả task-events theo userID (dựa vào userID nằm trong Task của mỗi event)
+  // GET /task-event/user - return all task events for the authenticated user
   @Get('user')
-  async getAllByUser(@Request() req): Promise<ApiResponse<TaskEvent[]>> {
+  async getTaskEventsByUser(@Request() req): Promise<ApiResponse<TaskEventResponse[]>> {
     const user = req.userInfo as UserDto;
     const events = await this.taskEventService.getTaskEventsByUserID(user.userId);
-    return new ApiResponse<TaskEvent[]>(events);
+    return new ApiResponse<TaskEventResponse[]>(events);
+
   }
 
   @Post('create')
