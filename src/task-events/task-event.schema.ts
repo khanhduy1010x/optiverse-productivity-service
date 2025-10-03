@@ -8,8 +8,8 @@ export type TaskEventDocument = TaskEvent & Document;
 export class TaskEvent {
   _id: mongoose.Types.ObjectId;
 
-  @Prop({ required: true, type: Types.ObjectId, ref: 'Task' })
-  task_id: Types.ObjectId;
+  @Prop({ required: true, type: Types.ObjectId, ref: 'User' })
+  user_id: Types.ObjectId;
 
   @Prop({ default: 'Untitled Event' })
   title: string;
@@ -45,10 +45,25 @@ export class TaskEvent {
   repeat_occurrences?: number;
 
   @Prop()
+  repeat_frequency?: number;
+
+  @Prop({ enum: ['day', 'week', 'month', 'year'] })
+  repeat_unit?: string;
+
+  @Prop({ type: [Date], default: [] })
+  exclusion_dates?: Date[];
+
+  @Prop()
   location?: string;
 
   @Prop({ type: [String], default: [] })
   guests?: string[];
+
+  @Prop()
+  color?: string;
+
+  @Prop({ type: Types.ObjectId, ref: 'TaskEvent' })
+  parent_event_id?: Types.ObjectId;
 }
 
 export const TaskEventSchema = SchemaFactory.createForClass(TaskEvent);

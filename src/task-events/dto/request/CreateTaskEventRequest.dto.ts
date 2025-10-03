@@ -2,8 +2,11 @@ import { IsNotEmpty, IsOptional, IsEnum, IsString, IsBoolean, IsArray, IsNumber 
 import { Types } from 'mongoose';
 
 export class CreateTaskEventRequest {
+  @IsOptional()
+  task_id?: string;
+
   @IsNotEmpty()
-  task_id: string;
+  user_id: string;
 
   @IsOptional()
   @IsString()
@@ -46,10 +49,30 @@ export class CreateTaskEventRequest {
   repeat_occurrences?: number;
 
   @IsOptional()
+  @IsNumber()
+  repeat_frequency?: number;
+
+  @IsOptional()
+  @IsEnum(['day', 'week', 'month', 'year'])
+  repeat_unit?: string;
+
+  @IsOptional()
+  @IsArray()
+  exclusion_dates?: Date[];
+
+  @IsOptional()
   @IsString()
   location?: string;
 
   @IsOptional()
   @IsArray()
   guests?: string[];
+
+  @IsOptional()
+  @IsString()
+  color?: string;
+
+  @IsOptional()
+  @IsString()
+  parent_event_id?: string;
 }

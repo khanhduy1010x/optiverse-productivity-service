@@ -32,4 +32,12 @@ export class TaskEventService {
   async deleteTaskEvent(taskEventId: string): Promise<void> {
     return await this.taskEventRepository.deleteTaskEvent(taskEventId);
   }
+
+  /**
+   * Get all task events associated with the current user
+   */
+  async getTaskEventsByUserID(userId: string): Promise<TaskEventResponse[]> {
+    const events = await this.taskEventRepository.getTaskEventsByUserID(userId);
+    return events.map(ev => new TaskEventResponse(ev));
+  }
 }
