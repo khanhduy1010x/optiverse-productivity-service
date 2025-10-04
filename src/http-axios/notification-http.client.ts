@@ -7,7 +7,6 @@ export enum ActionType {
   FLASHCARD = 'flashcard',
   CHAT = 'chat',
   FRIEND = 'friend',
-  ACHIEVEMENT = 'achievement',
 }
 
 @Injectable()

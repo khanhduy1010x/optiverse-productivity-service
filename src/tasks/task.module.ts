@@ -6,13 +6,11 @@ import { TaskService } from './task.service';
 import { TaskRepository } from './task.repository';
 import { TaskTagModule } from '../task-tags/task-tag.module';
 import { TaskTagService } from '../task-tags/task-tag.service';
-import { AchievementModule } from '../achievements/achievement.module';
 
 @Module({
   imports: [
     MongooseModule.forFeature([{ name: Task.name, schema: TaskSchema }]), 
     TaskTagModule,
-    forwardRef(() => AchievementModule), // Use forwardRef to avoid circular dependency
   ],
   controllers: [TaskController],
   providers: [TaskService, TaskRepository],

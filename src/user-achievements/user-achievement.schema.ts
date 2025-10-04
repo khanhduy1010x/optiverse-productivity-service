@@ -11,17 +11,11 @@ export class UserAchievement {
   @Prop({ required: true, type: Types.ObjectId, ref: 'User' })
   user_id: Types.ObjectId;
 
-  @Prop({ required: true, type: Types.ObjectId, ref: 'Achievement' })
-  achievement_id: Types.ObjectId;
+  @Prop({ required: true, type: String })
+  achievement_id: string;
 
   @Prop({ default: () => new Date() })
   unlocked_at: Date;
-
-  @Prop({ default: () => new Date() })
-  created_at: Date;
-
-  @Prop({ default: () => new Date() })
-  updated_at: Date;
 }
 
 export const UserAchievementSchema = SchemaFactory.createForClass(UserAchievement);

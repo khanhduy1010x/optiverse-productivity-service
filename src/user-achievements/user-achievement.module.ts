@@ -4,7 +4,7 @@ import { UserAchievement, UserAchievementSchema } from './user-achievement.schem
 import { UserAchievementController } from './user-achievement.controller';
 import { UserAchievementService } from './user-achievement.service';
 import { UserAchievementRepository } from './user-achievement.repository';
-import { AchievementModule } from '../achievements/achievement.module';
+import { AchievementModule } from '../achievement/achievement.module';
 
 @Module({
   imports: [

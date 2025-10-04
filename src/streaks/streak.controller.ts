@@ -16,7 +16,6 @@ import { UpdateStreakRequest } from './dto/request/UpdateStreakRequest.dto';
 import { ApiResponse as ApiResponseWrapper } from 'src/common/api-response';
 import { ApiBearerAuth, ApiBody, ApiExtraModels, ApiParam, ApiTags } from '@nestjs/swagger';
 import { UserDto } from 'src/user-dto/user.dto';
-import { AchievementService } from '../achievements/achievement.service';
 
 @ApiTags('Streak')
 @ApiBearerAuth('access-token')
@@ -24,8 +23,7 @@ import { AchievementService } from '../achievements/achievement.service';
 @Controller('/streak')
 export class StreakController {
   constructor(
-    private readonly streakService: StreakService,
-    private readonly achievementService: AchievementService
+    private readonly streakService: StreakService
   ) {}
 
   @Get('user')
@@ -40,9 +38,6 @@ export class StreakController {
     const user = req.userInfo as UserDto;
     const streak = await this.streakService.updateLoginStreak(user.userId);
     
-    // Check for streak achievements
-    await this.achievementService.checkStreakAchievements(user.userId);
-    
     return new ApiResponseWrapper<StreakResponse>(streak);
   }
 
@@ -50,9 +45,6 @@ export class StreakController {
   async updateTaskStreak(@Request() req): Promise<ApiResponseWrapper<StreakResponse>> {
     const user = req.userInfo as UserDto;
     const streak = await this.streakService.updateTaskStreak(user.userId);
-    
-    // Check for streak achievements
-    await this.achievementService.checkStreakAchievements(user.userId);
     
     return new ApiResponseWrapper<StreakResponse>(streak);
   }
@@ -62,9 +54,6 @@ export class StreakController {
     const user = req.userInfo as UserDto;
     const streak = await this.streakService.updateFlashcardStreak(user.userId);
     
-    // Check for streak achievements
-    await this.achievementService.checkStreakAchievements(user.userId);
-    
     return new ApiResponseWrapper<StreakResponse>(streak);
   }
-} 
+}

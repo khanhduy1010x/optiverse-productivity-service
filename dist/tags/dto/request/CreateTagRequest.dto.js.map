@@ -1,1 +1,0 @@
-{"version":3,"file":"CreateTagRequest.dto.js","sourceRoot":"","sources":["../../../../src/tags/dto/request/CreateTagRequest.dto.ts"],"names":[],"mappings":";;;;;;;;;;;;AAAA,6CAA8C;AAG9C,MAAa,gBAAgB;CAM5B;AAND,4CAMC;AAJC;IADC,IAAA,qBAAW,EAAC,EAAE,OAAO,EAAE,MAAM,EAAE,CAAC;;8CACpB;AAGb;IADC,IAAA,qBAAW,EAAC,EAAE,OAAO,EAAE,OAAO,EAAE,CAAC;;+CACnB"}
