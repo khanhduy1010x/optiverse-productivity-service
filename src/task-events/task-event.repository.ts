@@ -19,44 +19,6 @@ export class TaskEventRepository {
     return await this.taskEventModel.find({ task_id: new Types.ObjectId(taskId) }).exec();
   }
 
-  async getTaskEventsByUserID(userId: string): Promise<TaskEvent[]> {
-    return await this.taskEventModel
-      .aggregate([
-        {
-          $lookup: {
-            from: 'tasks',
-            localField: 'task_id',
-            foreignField: '_id',
-            as: 'task',
-          },
-        },
-        { $unwind: '$task' },
-        { $match: { 'task.user_id': new Types.ObjectId(userId) } },
-        {
-          $project: {
-            _id: 1,
-            task_id: 1,
-            title: 1,
-            description: 1,
-            start_time: 1,
-            end_time: 1,
-            all_day: 1,
-            repeat_type: 1,
-            repeat_interval: 1,
-            repeat_days: 1,
-            repeat_end_type: 1,
-            repeat_end_date: 1,
-            repeat_occurrences: 1,
-            location: 1,
-            guests: 1,
-            createdAt: 1,
-            updatedAt: 1,
-          },
-        },
-      ])
-      .exec();
-  }
-
   async createTaskEvent(createTaskEventDto: CreateTaskEventRequest): Promise<TaskEvent> {
     const newTaskEvent = new this.taskEventModel({
       task_id: createTaskEventDto.task_id ? new Types.ObjectId(createTaskEventDto.task_id) : undefined,
