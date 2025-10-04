@@ -13,10 +13,6 @@ export class TaskEventService {
     return await this.taskEventRepository.getTaskEventsByTaskID(taskId);
   }
 
-  async getTaskEventsByUserID(userId: string): Promise<TaskEvent[]> {
-    return await this.taskEventRepository.getTaskEventsByUserID(userId);
-  }
-
   async createTaskEvent(createTaskEventDto: CreateTaskEventRequest): Promise<TaskEventResponse> {
     const taskEvent = await this.taskEventRepository.createTaskEvent(createTaskEventDto);
     return new TaskEventResponse(taskEvent);
