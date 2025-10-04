@@ -1,13 +1,11 @@
-import { IsNotEmpty, IsOptional } from 'class-validator';
-import { Types } from 'mongoose';
+import { IsNotEmpty, IsString } from 'class-validator';
 
 export class CreateUserAchievementRequest {
   @IsNotEmpty()
-  user_id: Types.ObjectId;
+  @IsString()
+  user_id: string;
 
   @IsNotEmpty()
-  achievement_id: Types.ObjectId;
-
-  @IsOptional()
-  achieved_at?: Date;
+  @IsString()
+  achievement_id: string;
 }

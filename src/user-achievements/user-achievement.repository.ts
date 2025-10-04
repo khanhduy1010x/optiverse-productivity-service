@@ -16,14 +16,12 @@ export class UserAchievementRepository {
   async getUserAchievements(userId: string): Promise<UserAchievement[]> {
     return this.userAchievementModel
       .find({ user_id: new Types.ObjectId(userId) })
-      .populate('achievement_id')
       .exec();
   }
 
   async findById(id: string): Promise<UserAchievement> {
     return this.userAchievementModel
       .findById(new Types.ObjectId(id))
-      .populate('achievement_id')
       .orFail(new AppException(ErrorCode.NOT_FOUND))
       .exec();
   }
@@ -31,32 +29,39 @@ export class UserAchievementRepository {
   async checkUserHasAchievement(userId: string, achievementId: string): Promise<boolean> {
     const count = await this.userAchievementModel.countDocuments({
       user_id: new Types.ObjectId(userId),
-      achievement_id: new Types.ObjectId(achievementId),
-    }).exec();
-    
+      achievement_id: achievementId,
+    });
     return count > 0;
   }
 
   async createUserAchievement(userId: string, achievementId: string): Promise<UserAchievement> {
     const newUserAchievement = new this.userAchievementModel({
       user_id: new Types.ObjectId(userId),
-      achievement_id: new Types.ObjectId(achievementId),
+      achievement_id: achievementId,
       unlocked_at: new Date(),
     });
-    
+
     return newUserAchievement.save();
   }
 
   async createManyUserAchievements(
-    userId: string, 
+    userId: string,
     achievementIds: string[]
   ): Promise<UserAchievement[]> {
     const userAchievements = achievementIds.map(achievementId => ({
       user_id: new Types.ObjectId(userId),
-      achievement_id: new Types.ObjectId(achievementId),
+      achievement_id: achievementId,
       unlocked_at: new Date(),
     }));
-    
+
     return this.userAchievementModel.insertMany(userAchievements);
+  }
+
+  async deleteByAchievementId(achievementId: string): Promise<void> {
+    const result = await this.userAchievementModel.deleteMany({ 
+      achievement_id: achievementId 
+    }).exec();
+    
+    console.log(`Deleted ${result.deletedCount} user achievements for achievement: ${achievementId}`);
   }
 }
