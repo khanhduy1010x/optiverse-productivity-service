@@ -28,6 +28,7 @@ export enum ErrorCode {
   INVALID_RESOURCE_TYPE,
   SHARE_NOT_FOUND,
   UPDATE_SHARE_FAILED,
+  INVALID_OBJECT_ID,
 }
 export const ErrorDetails = {
   [ErrorCode.INVALID_CODE]: {
@@ -165,5 +166,10 @@ export const ErrorDetails = {
     code: 1025,
     message: 'Failed to update share',
     httpStatus: HttpStatus.INTERNAL_SERVER_ERROR,
+  },
+  [ErrorCode.INVALID_OBJECT_ID]: {
+    code: 1026,
+    message: 'Invalid ObjectId format',
+    httpStatus: HttpStatus.BAD_REQUEST,
   },
 };
