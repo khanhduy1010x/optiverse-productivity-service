@@ -94,4 +94,33 @@ export class FriendService {
   async countAcceptedFriends(userId: string): Promise<number> {
     return this.friendRepository.countAcceptedFriends(userId);
   }
+
+  /**
+   * Get friend suggestions for a user (friends of friends)
+   * @param userId User ID to get suggestions for
+   * @returns Array of friend suggestions
+   */
+  async getFriendSuggestions(
+    userId: string,
+  ): Promise<(Friend | EnrichedFriendRequest)[]> {
+    return this.friendRepository.getFriendSuggestions(userId);
+  }
+
+  /**
+   * Get all relationships with a specific user
+   * @param currentUserId Current user ID
+   * @param targetUserId Target user ID to check relationships with
+   * @returns Object containing relationship status and details
+   */
+  async getAllRelationshipsWithUser(
+    currentUserId: string,
+    targetUserId: string,
+  ): Promise<{
+    isFriend: boolean;
+    friendRelation?: Friend;
+    pendingIncoming?: Friend;
+    sentRequest?: Friend;
+  }> {
+    return this.friendRepository.getAllRelationshipsWithUser(currentUserId, targetUserId);
+  }
 }
