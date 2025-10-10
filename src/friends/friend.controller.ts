@@ -175,4 +175,31 @@ export class FriendController {
     const friends = await this.friendService.viewAllFriends(user.userId);
     return new ApiResponse(friends);
   }
+
+  @Get('suggestions')
+  async getFriendSuggestions(@Request() req): Promise<ApiResponse<(Friend | EnrichedFriendRequest)[]>> {
+    const user = req.userInfo as UserDto;
+
+    const suggestions = await this.friendService.getFriendSuggestions(user.userId);
+    return new ApiResponse(suggestions);
+  }
+
+  @ApiParam({
+    name: 'userId',
+    type: String,
+  })
+  @Get('relationships/:userId')
+  async getAllRelationshipsWithUser(
+    @Request() req,
+    @Param('userId') targetUserId: string,
+  ): Promise<ApiResponse<{
+    isFriend: boolean;
+    friendRelation?: Friend;
+    pendingIncoming?: Friend;
+    sentRequest?: Friend;
+  }>> {
+    const user = req.userInfo as UserDto;
+    const relationships = await this.friendService.getAllRelationshipsWithUser(user.userId, targetUserId);
+    return new ApiResponse(relationships);
+  }
 }
