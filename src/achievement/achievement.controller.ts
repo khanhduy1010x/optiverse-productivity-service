@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Request, UseInterceptors, UploadedFile, UploadedFiles } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Request, UseInterceptors, UploadedFiles } from '@nestjs/common';
 import { FileInterceptor, FileFieldsInterceptor } from '@nestjs/platform-express';
 import { AchievementService } from './achievement.service';
 import { AchievementRepository } from './achievement.repository';
@@ -8,6 +8,9 @@ import { UpdateAchievementRequest } from './dto/request/UpdateAchievementRequest
 import { AchievementResponse } from './dto/response/AchievementResponse.dto';
 import { ApiResponse as ApiResponseWrapper } from 'src/common/api-response';
 import { CloudinaryService } from 'src/common/cloudinary/cloudinary.service';
+import { AppException } from 'src/common/exceptions/app.exception';
+import { ErrorCode } from 'src/common/exceptions/error-code.enum';
+import { Operator, RuleCategory, ValueType, LogicOperator } from './achievement.schema';
 
 @ApiBearerAuth('access-token')
 @Controller('/achievement')
@@ -17,6 +20,95 @@ export class AchievementController {
     private readonly achievementRepository: AchievementRepository,
     private readonly cloudinaryService: CloudinaryService,
   ) {}
+
+  private isEnumValue<T extends object>(enumObj: T, value: any): boolean {
+    return Object.values(enumObj as any).includes(value);
+  }
+
+  private parseRulesInput(rules: any[] | string | undefined): any[] {
+    if (!rules) return [];
+    if (typeof rules === 'string') {
+      try {
+        const parsed = JSON.parse(rules);
+        if (!Array.isArray(parsed)) {
+          throw new AppException(ErrorCode.ACHIEVEMENT_INVALID_RULES_FORMAT);
+        }
+        return parsed;
+      } catch {
+        throw new AppException(ErrorCode.ACHIEVEMENT_INVALID_RULES_FORMAT);
+      }
+    }
+    if (!Array.isArray(rules)) {
+      throw new AppException(ErrorCode.ACHIEVEMENT_INVALID_RULES_FORMAT);
+    }
+    return rules;
+  }
+
+  private validateRule(rule: any) {
+    if (!this.isEnumValue(RuleCategory, rule?.category)) {
+      throw new AppException(ErrorCode.ACHIEVEMENT_INVALID_RULE_CATEGORY);
+    }
+    if (typeof rule?.field !== 'string' || rule.field.trim().length === 0) {
+      throw new AppException(ErrorCode.ACHIEVEMENT_INVALID_RULE_FIELD);
+    }
+    if (!this.isEnumValue(ValueType, rule?.value_type)) {
+      throw new AppException(ErrorCode.ACHIEVEMENT_INVALID_RULE_VALUE_TYPE);
+    }
+    if (!this.isEnumValue(Operator, rule?.operator)) {
+      throw new AppException(ErrorCode.ACHIEVEMENT_INVALID_RULE_OPERATOR);
+    }
+    // threshold validation for STRING/NUMBER
+    if (rule.value_type === ValueType.STRING || rule.value_type === ValueType.NUMBER) {
+      if (rule.threshold === undefined || typeof rule.threshold !== 'number' || Number.isNaN(rule.threshold)) {
+        throw new AppException(ErrorCode.ACHIEVEMENT_MISSING_THRESHOLD);
+      }
+    }
+    // value validation by type
+    const val = rule.value;
+    if (rule.value_type === ValueType.DATE) {
+      if (typeof val !== 'string' || Number.isNaN(Date.parse(val))) {
+        throw new AppException(ErrorCode.ACHIEVEMENT_INVALID_DATE_VALUE);
+      }
+    } else if (rule.value_type === ValueType.NUMBER) {
+      if (typeof val !== 'string' || Number.isNaN(parseFloat(val))) {
+        throw new AppException(ErrorCode.ACHIEVEMENT_INVALID_NUMBER_VALUE);
+      }
+    } else if (rule.value_type === ValueType.BOOLEAN) {
+      if (val !== 'true' && val !== 'false') {
+        throw new AppException(ErrorCode.ACHIEVEMENT_INVALID_BOOLEAN_VALUE);
+      }
+    } else {
+      if (typeof val !== 'string') {
+        throw new AppException(ErrorCode.ACHIEVEMENT_INVALID_VALUE);
+      }
+    }
+  }
+
+  private validateCreateDto(dto: CreateAchievementRequest) {
+    if (typeof dto.title !== 'string' || dto.title.trim().length === 0) {
+      throw new AppException(ErrorCode.ACHIEVEMENT_INVALID_TITLE);
+    }
+    if (dto.logic_operator && !this.isEnumValue(LogicOperator, dto.logic_operator)) {
+      throw new AppException(ErrorCode.ACHIEVEMENT_INVALID_LOGIC_OPERATOR);
+    }
+    const rulesArr = this.parseRulesInput(dto.rules as any);
+    rulesArr.forEach((r) => this.validateRule(r));
+  }
+
+  private validateUpdateDto(dto: UpdateAchievementRequest) {
+    if (dto.title !== undefined) {
+      if (typeof dto.title !== 'string' || dto.title.trim().length === 0) {
+        throw new AppException(ErrorCode.ACHIEVEMENT_INVALID_TITLE);
+      }
+    }
+    if (dto.logic_operator && !this.isEnumValue(LogicOperator, dto.logic_operator)) {
+      throw new AppException(ErrorCode.ACHIEVEMENT_INVALID_LOGIC_OPERATOR);
+    }
+    if (dto.rules !== undefined) {
+      const rulesArr = this.parseRulesInput(dto.rules as any);
+      rulesArr.forEach((r) => this.validateRule(r));
+    }
+  }
 
   @Get('')
   @ApiOkResponse({
@@ -96,12 +188,10 @@ export class AchievementController {
     // Parse rules từ string thành array object khi sử dụng FormData
     let parsedDto = { ...createAchievementDto };
     if (typeof createAchievementDto.rules === 'string') {
-      try {
-        parsedDto.rules = JSON.parse(createAchievementDto.rules);
-      } catch (error) {
-        throw new Error('Invalid rules format. Must be a valid JSON array.');
-      }
+      parsedDto.rules = this.parseRulesInput(createAchievementDto.rules);
     }
+    // Validate full dto
+    this.validateCreateDto(parsedDto as any);
 
     const achievement = await this.achievementRepository.create({
       ...parsedDto,
@@ -151,12 +241,10 @@ export class AchievementController {
     // Parse rules từ string thành array object khi sử dụng FormData
     let parsedDto = { ...updateAchievementDto };
     if (typeof updateAchievementDto.rules === 'string') {
-      try {
-        parsedDto.rules = JSON.parse(updateAchievementDto.rules);
-      } catch (error) {
-        throw new Error('Invalid rules format. Must be a valid JSON array.');
-      }
+      parsedDto.rules = this.parseRulesInput(updateAchievementDto.rules);
     }
+    // Validate update dto (only provided fields)
+    this.validateUpdateDto(parsedDto as any);
 
     const achievement = await this.achievementRepository.update(id, {
       ...parsedDto,
@@ -182,6 +270,9 @@ export class AchievementController {
   })
   async evaluateForCurrentUser(@Request() req) {
     const userId = req.userInfo?.userId;
+    if (!userId) {
+      throw new AppException(ErrorCode.MISSING_ACCESS_TOKEN);
+    }
     const result = await this.achievementService.evaluateForUser(userId);
     return new ApiResponseWrapper(result);
   }

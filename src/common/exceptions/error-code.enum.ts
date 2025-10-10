@@ -29,6 +29,20 @@ export enum ErrorCode {
   SHARE_NOT_FOUND,
   UPDATE_SHARE_FAILED,
   INVALID_OBJECT_ID,
+  // Achievement validation specific error codes
+  ACHIEVEMENT_INVALID_TITLE,
+  ACHIEVEMENT_INVALID_LOGIC_OPERATOR,
+  ACHIEVEMENT_INVALID_RULES_FORMAT,
+  ACHIEVEMENT_INVALID_RULE_CATEGORY,
+  ACHIEVEMENT_INVALID_RULE_FIELD,
+  ACHIEVEMENT_INVALID_RULE_VALUE_TYPE,
+  ACHIEVEMENT_INVALID_RULE_OPERATOR,
+  ACHIEVEMENT_MISSING_THRESHOLD,
+  ACHIEVEMENT_INVALID_DATE_VALUE,
+  ACHIEVEMENT_INVALID_NUMBER_VALUE,
+  ACHIEVEMENT_INVALID_BOOLEAN_VALUE,
+  ACHIEVEMENT_INVALID_VALUE,
+  ACHIEVEMENT_MISSING_USER_ID,
 }
 export const ErrorDetails = {
   [ErrorCode.INVALID_CODE]: {
@@ -170,6 +184,72 @@ export const ErrorDetails = {
   [ErrorCode.INVALID_OBJECT_ID]: {
     code: 1026,
     message: 'Invalid ObjectId format',
+    httpStatus: HttpStatus.BAD_REQUEST,
+  },
+  // Achievement validation specific error details
+  [ErrorCode.ACHIEVEMENT_INVALID_TITLE]: {
+    code: 1100,
+    message: 'Invalid achievement title',
+    httpStatus: HttpStatus.BAD_REQUEST,
+  },
+  [ErrorCode.ACHIEVEMENT_INVALID_LOGIC_OPERATOR]: {
+    code: 1101,
+    message: 'Invalid logic operator',
+    httpStatus: HttpStatus.BAD_REQUEST,
+  },
+  [ErrorCode.ACHIEVEMENT_INVALID_RULES_FORMAT]: {
+    code: 1102,
+    message: 'Invalid rules format. Must be an array of rules',
+    httpStatus: HttpStatus.BAD_REQUEST,
+  },
+  [ErrorCode.ACHIEVEMENT_INVALID_RULE_CATEGORY]: {
+    code: 1103,
+    message: 'Invalid rule category',
+    httpStatus: HttpStatus.BAD_REQUEST,
+  },
+  [ErrorCode.ACHIEVEMENT_INVALID_RULE_FIELD]: {
+    code: 1104,
+    message: 'Invalid rule field',
+    httpStatus: HttpStatus.BAD_REQUEST,
+  },
+  [ErrorCode.ACHIEVEMENT_INVALID_RULE_VALUE_TYPE]: {
+    code: 1105,
+    message: 'Invalid rule value type',
+    httpStatus: HttpStatus.BAD_REQUEST,
+  },
+  [ErrorCode.ACHIEVEMENT_INVALID_RULE_OPERATOR]: {
+    code: 1106,
+    message: 'Invalid rule operator',
+    httpStatus: HttpStatus.BAD_REQUEST,
+  },
+  [ErrorCode.ACHIEVEMENT_MISSING_THRESHOLD]: {
+    code: 1107,
+    message: 'Missing or invalid threshold for STRING/NUMBER type',
+    httpStatus: HttpStatus.BAD_REQUEST,
+  },
+  [ErrorCode.ACHIEVEMENT_INVALID_DATE_VALUE]: {
+    code: 1108,
+    message: 'Invalid date value in rule',
+    httpStatus: HttpStatus.BAD_REQUEST,
+  },
+  [ErrorCode.ACHIEVEMENT_INVALID_NUMBER_VALUE]: {
+    code: 1109,
+    message: 'Invalid number value in rule',
+    httpStatus: HttpStatus.BAD_REQUEST,
+  },
+  [ErrorCode.ACHIEVEMENT_INVALID_BOOLEAN_VALUE]: {
+    code: 1110,
+    message: 'Invalid boolean value in rule. Must be true/false',
+    httpStatus: HttpStatus.BAD_REQUEST,
+  },
+  [ErrorCode.ACHIEVEMENT_INVALID_VALUE]: {
+    code: 1111,
+    message: 'Invalid value in rule',
+    httpStatus: HttpStatus.BAD_REQUEST,
+  },
+  [ErrorCode.ACHIEVEMENT_MISSING_USER_ID]: {
+    code: 1112,
+    message: 'Missing user id for evaluation',
     httpStatus: HttpStatus.BAD_REQUEST,
   },
 };
