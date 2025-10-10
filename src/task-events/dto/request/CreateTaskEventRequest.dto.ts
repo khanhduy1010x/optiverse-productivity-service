@@ -1,4 +1,5 @@
-import { IsNotEmpty, IsOptional, IsEnum, IsString, IsBoolean, IsArray, IsNumber } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsEnum, IsString, IsBoolean, IsArray, IsNumber, MaxLength, Matches, IsDateString } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { Types } from 'mongoose';
 
 export class CreateTaskEventRequest {
@@ -9,18 +10,25 @@ export class CreateTaskEventRequest {
   user_id: string;
 
   @IsOptional()
-  @IsString()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @IsString({ message: 'Event title must be a string' })
+  @MaxLength(50, { message: 'Event title must be at most 50 characters' })
+  @Matches(/\S/, { message: 'Event title cannot be only whitespace' })
   title?: string;
 
   @IsOptional()
   @IsString()
   description?: string;
 
-  @IsNotEmpty()
-  start_time: Date;
+  @IsNotEmpty({ message: 'Start time is required' })
+  @Transform(({ value }) => (value instanceof Date ? value.toISOString() : value))
+  @IsDateString({}, { message: 'Start time must be a valid ISO date' })
+  start_time: string;
 
   @IsOptional()
-  end_time?: Date;
+  @Transform(({ value }) => (value instanceof Date ? value.toISOString() : value))
+  @IsDateString({}, { message: 'End time must be a valid ISO date' })
+  end_time?: string;
 
   @IsOptional()
   @IsBoolean()

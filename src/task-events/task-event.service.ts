@@ -4,6 +4,7 @@ import { TaskEvent } from './task-event.schema';
 import { CreateTaskEventRequest } from './dto/request/CreateTaskEventRequest.dto';
 import { UpdateTaskEventRequest } from './dto/request/UpdateTaskEventRequest.dto';
 import { TaskEventResponse } from './dto/response/TaskEventResponse.dto';
+import { BadRequestException } from '@nestjs/common';
 
 @Injectable()
 export class TaskEventService {
@@ -14,6 +15,35 @@ export class TaskEventService {
   }
 
   async createTaskEvent(createTaskEventDto: CreateTaskEventRequest): Promise<TaskEventResponse> {
+    // Validate time rules similar to Task
+    const start = createTaskEventDto.start_time ? new Date(createTaskEventDto.start_time) : undefined;
+    const end = createTaskEventDto.end_time ? new Date(createTaskEventDto.end_time) : undefined;
+
+    if (!start || isNaN(start.getTime())) {
+      throw new BadRequestException({ statusCode: 400, message: 'Invalid start time' });
+    }
+
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startDateOnly = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+
+    if (startDateOnly < today) {
+      throw new BadRequestException({ statusCode: 400, message: 'Start date cannot be in the past' });
+    }
+
+    if (end) {
+      if (isNaN(end.getTime())) {
+        throw new BadRequestException({ statusCode: 400, message: 'Invalid end time' });
+      }
+      const endDateOnly = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+      if (endDateOnly < today) {
+        throw new BadRequestException({ statusCode: 400, message: 'End date cannot be in the past' });
+      }
+      if (end <= start) {
+        throw new BadRequestException({ statusCode: 400, message: 'End time must be after start time' });
+      }
+    }
+
     const taskEvent = await this.taskEventRepository.createTaskEvent(createTaskEventDto);
     return new TaskEventResponse(taskEvent);
   }
@@ -22,6 +52,37 @@ export class TaskEventService {
     taskEventId: string,
     updateTaskEventDto: UpdateTaskEventRequest,
   ): Promise<TaskEventResponse> {
+    // Validate time rules similar to Task
+    const start = updateTaskEventDto.start_time ? new Date(updateTaskEventDto.start_time) : undefined;
+    const end = updateTaskEventDto.end_time ? new Date(updateTaskEventDto.end_time) : undefined;
+
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    if (start) {
+      if (isNaN(start.getTime())) {
+        throw new BadRequestException({ statusCode: 400, message: 'Invalid start time' });
+      }
+      const startDateOnly = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+      if (startDateOnly < today) {
+        throw new BadRequestException({ statusCode: 400, message: 'Start date cannot be in the past' });
+      }
+    }
+
+    if (end) {
+      if (isNaN(end.getTime())) {
+        throw new BadRequestException({ statusCode: 400, message: 'Invalid end time' });
+      }
+      const endDateOnly = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+      if (endDateOnly < today) {
+        throw new BadRequestException({ statusCode: 400, message: 'End date cannot be in the past' });
+      }
+
+      if (start && end <= start) {
+        throw new BadRequestException({ statusCode: 400, message: 'End time must be after start time' });
+      }
+    }
+
     const taskEvent = await this.taskEventRepository.updateTaskEvent(
       taskEventId,
       updateTaskEventDto,
