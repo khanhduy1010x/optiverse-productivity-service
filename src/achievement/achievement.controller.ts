@@ -69,11 +69,8 @@ export class AchievementController {
       if (typeof val !== 'string' || Number.isNaN(Date.parse(val))) {
         throw new AppException(ErrorCode.ACHIEVEMENT_INVALID_DATE_VALUE);
       }
-    } else if (rule.value_type === ValueType.NUMBER) {
-      if (typeof val !== 'string' || Number.isNaN(parseFloat(val))) {
-        throw new AppException(ErrorCode.ACHIEVEMENT_INVALID_NUMBER_VALUE);
-      }
-    } else if (rule.value_type === ValueType.BOOLEAN) {
+    } 
+    else if (rule.value_type === ValueType.BOOLEAN) {
       if (val !== 'true' && val !== 'false') {
         throw new AppException(ErrorCode.ACHIEVEMENT_INVALID_BOOLEAN_VALUE);
       }
