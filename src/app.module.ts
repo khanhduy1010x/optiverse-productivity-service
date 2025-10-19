@@ -24,7 +24,7 @@ import { AuthMiddleware } from './midlleware/auth.middleware';
 import { AchievementEvaluationMiddleware } from './midlleware/achievement-evaluation.middleware';
 import { CloudinaryModule } from './common/cloudinary/cloudinary.module';
 import { AchievementModule } from './achievement/achievement.module';
-
+import { WorkspaceModule } from './workspace/workspace.module';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -54,6 +54,7 @@ import { AchievementModule } from './achievement/achievement.module';
     StreakModule,
     CloudinaryModule,
     AchievementModule,
+    WorkspaceModule,
   ],
   controllers: [AppController],
   providers: [
