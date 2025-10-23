@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, MaxLength, Matches, IsOptional, IsEnum, IsDateString } from 'class-validator';
+import { IsNotEmpty, IsString, MaxLength, Matches, IsOptional, IsEnum } from 'class-validator';
 import { Transform } from 'class-transformer';
 
 export class CreateTaskRequest {
@@ -27,15 +27,11 @@ export class CreateTaskRequest {
   @IsEnum(['low', 'medium', 'high'], { message: 'Invalid priority value' })
   priority?: string;
 
-  @ApiProperty({ example: '2024-12-12T08:00:00.000Z' })
-  @Transform(({ value }) => (value instanceof Date ? value.toISOString() : value))
-  @IsNotEmpty({ message: 'Start time is required' })
-  @IsDateString({}, { message: 'Start time must be a valid ISO date' })
-  start_time: string;
+  @ApiPropertyOptional({ example: '2024-12-12T08:00:00.000Z' })
+  @IsOptional()
+  start_time?: string;
 
   @ApiPropertyOptional({ example: '2024-12-12T10:00:00.000Z' })
   @IsOptional()
-  @Transform(({ value }) => (value instanceof Date ? value.toISOString() : value))
-  @IsDateString({}, { message: 'End time must be a valid ISO date' })
   end_time?: string;
 }

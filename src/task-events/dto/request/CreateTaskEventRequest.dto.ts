@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsOptional, IsEnum, IsString, IsBoolean, IsArray, IsNumber, MaxLength, Matches, IsDateString } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsEnum, IsString, IsBoolean, IsArray, IsNumber, MaxLength, Matches } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { Types } from 'mongoose';
 
@@ -6,7 +6,7 @@ export class CreateTaskEventRequest {
   @IsOptional()
   task_id?: string;
 
-  @IsNotEmpty()
+  @IsNotEmpty({ message: 'User ID is required' })
   user_id: string;
 
   @IsOptional()
@@ -18,24 +18,22 @@ export class CreateTaskEventRequest {
 
   @IsOptional()
   @IsString()
+  @MaxLength(500, { message: 'Description cannot exceed 500 characters' })
   description?: string;
 
-  @IsNotEmpty({ message: 'Start time is required' })
-  @Transform(({ value }) => (value instanceof Date ? value.toISOString() : value))
-  @IsDateString({}, { message: 'Start time must be a valid ISO date' })
-  start_time: string;
+  @IsOptional()
+  start_time?: string;
 
   @IsOptional()
-  @Transform(({ value }) => (value instanceof Date ? value.toISOString() : value))
-  @IsDateString({}, { message: 'End time must be a valid ISO date' })
   end_time?: string;
 
   @IsOptional()
   @IsBoolean()
   all_day?: boolean;
 
+  @IsOptional()
   @IsEnum(['none', 'daily', 'weekly', 'monthly', 'yearly', 'weekday', 'custom'])
-  repeat_type: string;
+  repeat_type?: string;
 
   @IsOptional()
   @IsNumber()
