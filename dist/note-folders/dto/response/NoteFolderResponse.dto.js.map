@@ -1,0 +1,1 @@
+{"version":3,"file":"NoteFolderResponse.dto.js","sourceRoot":"","sources":["../../../../src/note-folders/dto/response/NoteFolderResponse.dto.ts"],"names":[],"mappings":";;;AAEA,MAAa,kBAAkB;IAG7B,YAAY,UAAsB;QAChC,IAAI,CAAC,UAAU,GAAG,UAAU,CAAC;IAC/B,CAAC;CACF;AAND,gDAMC"}
