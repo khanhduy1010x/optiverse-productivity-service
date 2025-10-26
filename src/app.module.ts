@@ -25,6 +25,7 @@ import { AchievementEvaluationMiddleware } from './midlleware/achievement-evalua
 import { CloudinaryModule } from './common/cloudinary/cloudinary.module';
 import { AchievementModule } from './achievement/achievement.module';
 import { WorkspaceModule } from './workspace/workspace.module';
+import { WorkspaceTaskModule } from './workspace-task/workspace-task.module';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -55,6 +56,7 @@ import { WorkspaceModule } from './workspace/workspace.module';
     CloudinaryModule,
     AchievementModule,
     WorkspaceModule,
+    WorkspaceTaskModule,
   ],
   controllers: [AppController],
   providers: [

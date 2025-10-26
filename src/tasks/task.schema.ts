@@ -22,8 +22,8 @@ export class Task {
   @Prop({ enum: ['low', 'medium', 'high'], default: 'medium' })
   priority: string;
 
-  @Prop({ required: true })
-  start_time: Date;
+  @Prop()
+  start_time?: Date;
 
   @Prop()
   end_time?: Date;

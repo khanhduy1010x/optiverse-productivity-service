@@ -1,4 +1,4 @@
-import { IsOptional, IsEnum, IsString, IsBoolean, IsArray, IsNumber, MaxLength, Matches, IsDateString } from 'class-validator';
+import { IsOptional, IsEnum, IsString, IsBoolean, IsArray, IsNumber, MaxLength, Matches } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { Types } from 'mongoose';
 
@@ -12,16 +12,13 @@ export class UpdateTaskEventRequest {
 
   @IsOptional()
   @IsString()
+  @MaxLength(500, { message: 'Description cannot exceed 500 characters' })
   description?: string;
 
   @IsOptional()
-  @Transform(({ value }) => (value instanceof Date ? value.toISOString() : value))
-  @IsDateString({}, { message: 'Start time must be a valid ISO date' })
   start_time?: string;
 
   @IsOptional()
-  @Transform(({ value }) => (value instanceof Date ? value.toISOString() : value))
-  @IsDateString({}, { message: 'End time must be a valid ISO date' })
   end_time?: string;
 
   @IsOptional()
