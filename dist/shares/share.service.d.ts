@@ -1,0 +1,36 @@
+import { ShareRepository } from './share.repository';
+import { NoteService } from '../notes/note.service';
+import { NoteFolderService } from '../note-folders/note-folder.service';
+import { ShareResponse } from './dto/response/ShareResponse.dto';
+import { ShareUserDto } from './dto/request/ShareRequest.dto';
+import { RootItem } from '../note-folders/note-folder.schema';
+import { UserHttpClient } from 'src/http-axios/user-http.client';
+import { NotificationHttpClient } from 'src/http-axios/notification-http.client';
+import { NoteGateway } from '../notes/note.gateway';
+import { NoteRepository } from '../notes/note.repository';
+import { NoteFolderRepository } from '../note-folders/note-folder.repository';
+import { ApiResponse } from 'src/common/api-response';
+export declare class ShareService {
+    private readonly shareRepository;
+    private readonly noteService;
+    private readonly noteFolderService;
+    private readonly userHttpClient;
+    private readonly noteRepository;
+    private readonly noteFolderRepository;
+    private readonly notificationHttpClient;
+    private readonly noteGateway?;
+    constructor(shareRepository: ShareRepository, noteService: NoteService, noteFolderService: NoteFolderService, userHttpClient: UserHttpClient, noteRepository: NoteRepository, noteFolderRepository: NoteFolderRepository, notificationHttpClient: NotificationHttpClient, noteGateway?: NoteGateway | undefined);
+    private getNoteGateway;
+    shareResource(ownerId: string, resourceType: string, resourceId: string, users: ShareUserDto[]): Promise<ShareResponse>;
+    private sendShareNotificationEmails;
+    updateSharedUsers(ownerId: string, resourceType: string, resourceId: string, users: ShareUserDto[]): Promise<ShareResponse>;
+    private sendPermissionChangedEmails;
+    removeUserFromShare(ownerId: string, resourceType: string, resourceId: string, userId: string): Promise<ShareResponse>;
+    getSharesSharedWithUser(userId: string): Promise<ShareResponse[]>;
+    getSharesSharedWithUserAsRootItems(userId: string): Promise<RootItem[]>;
+    getSharesByOwnerId(ownerId: string): Promise<ShareResponse[]>;
+    getSharedResourceDetail(resourceType: string, resourceId: string, userId: string): Promise<RootItem | null>;
+    private applyPermissionToFolderContents;
+    private validateResourceOwnership;
+    leaveSharedResource(resourceType: string, resourceId: string, userInfo: any): Promise<ApiResponse<null>>;
+}

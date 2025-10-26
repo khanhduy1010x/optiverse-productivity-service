@@ -26,6 +26,7 @@ import { CloudinaryModule } from './common/cloudinary/cloudinary.module';
 import { AchievementModule } from './achievement/achievement.module';
 import { WorkspaceModule } from './workspace/workspace.module';
 import { WorkspaceTaskModule } from './workspace-task/workspace-task.module';
+import { UserInventoryModule } from './user-inventory/user-inventory.module';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -57,6 +58,8 @@ import { WorkspaceTaskModule } from './workspace-task/workspace-task.module';
     AchievementModule,
     WorkspaceModule,
     WorkspaceTaskModule,
+    UserInventoryModule,
+
   ],
   controllers: [AppController],
   providers: [

@@ -8,6 +8,7 @@ import { Task, TaskSchema } from 'src/tasks/task.schema';
 import { Friend, FriendSchema } from 'src/friends/friend.schema';
 import { Streak, StreakSchema } from 'src/streaks/streak.schema';
 import { UserAchievementModule } from 'src/user-achievements/user-achievement.module';
+import { UserInventoryModule } from 'src/user-inventory/user-inventory.module';
 import { CloudinaryModule } from 'src/common/cloudinary/cloudinary.module';
 
 @Module({
@@ -19,6 +20,7 @@ import { CloudinaryModule } from 'src/common/cloudinary/cloudinary.module';
       { name: Streak.name, schema: StreakSchema },
     ]),
     forwardRef(() => UserAchievementModule),
+    UserInventoryModule,
     CloudinaryModule,
   ],
   controllers: [AchievementController],

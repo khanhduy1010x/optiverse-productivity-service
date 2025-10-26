@@ -11,6 +11,7 @@ import { CloudinaryService } from 'src/common/cloudinary/cloudinary.service';
 import { AppException } from 'src/common/exceptions/app.exception';
 import { ErrorCode } from 'src/common/exceptions/error-code.enum';
 import { Operator, RuleCategory, ValueType, LogicOperator } from './achievement.schema';
+import { UserInventoryService } from 'src/user-inventory/user-inventory.service';
 
 @ApiBearerAuth('access-token')
 @Controller('/achievement')
@@ -19,6 +20,7 @@ export class AchievementController {
     private readonly achievementService: AchievementService,
     private readonly achievementRepository: AchievementRepository,
     private readonly cloudinaryService: CloudinaryService,
+    private readonly userInventoryService: UserInventoryService,
   ) {}
 
   private isEnumValue<T extends object>(enumObj: T, value: any): boolean {
@@ -271,6 +273,24 @@ export class AchievementController {
       throw new AppException(ErrorCode.MISSING_ACCESS_TOKEN);
     }
     const result = await this.achievementService.evaluateForUser(userId);
+    
+    // Thêm reward vào user-inventory cho những achievement mới unlock
+    if (result.newlyUnlocked && result.newlyUnlocked.length > 0) {
+      for (const achievementId of result.newlyUnlocked) {
+        try {
+          // Lấy thông tin achievement để có reward
+          const achievement = await this.achievementRepository.findById(achievementId);
+          if (achievement && achievement.reward) {
+            // Thêm reward vào user-inventory
+            await this.userInventoryService.addReward(userId, achievement.reward);
+          }
+        } catch (error) {
+          // Log error nhưng không làm fail toàn bộ process
+          console.error(`Failed to add reward for achievement ${achievementId}:`, error);
+        }
+      }
+    }
+    
     return new ApiResponseWrapper(result);
   }
 }

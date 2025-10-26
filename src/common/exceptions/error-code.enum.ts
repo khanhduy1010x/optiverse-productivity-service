@@ -43,6 +43,15 @@ export enum ErrorCode {
   ACHIEVEMENT_INVALID_BOOLEAN_VALUE,
   ACHIEVEMENT_INVALID_VALUE,
   ACHIEVEMENT_MISSING_USER_ID,
+  // User Inventory validation specific error codes
+  FRAME_TITLE_REQUIRED,
+  FRAME_TITLE_TOO_SHORT,
+  FRAME_TITLE_TOO_LONG,
+  FRAME_NOT_FOUND,
+  FRAME_INVALID_ID,
+  FRAME_UPLOAD_FAILED,
+  FRAME_INVALID_FILE_TYPE,
+  FRAME_FILE_TOO_LARGE,
 }
 export const ErrorDetails = {
   [ErrorCode.INVALID_CODE]: {
@@ -250,6 +259,47 @@ export const ErrorDetails = {
   [ErrorCode.ACHIEVEMENT_MISSING_USER_ID]: {
     code: 1112,
     message: 'Missing user id for evaluation',
+    httpStatus: HttpStatus.BAD_REQUEST,
+  },
+  // User Inventory validation specific error details
+  [ErrorCode.FRAME_TITLE_REQUIRED]: {
+    code: 1200,
+    message: 'Frame title is required',
+    httpStatus: HttpStatus.BAD_REQUEST,
+  },
+  [ErrorCode.FRAME_TITLE_TOO_SHORT]: {
+    code: 1201,
+    message: 'Frame title must be at least 2 characters long',
+    httpStatus: HttpStatus.BAD_REQUEST,
+  },
+  [ErrorCode.FRAME_TITLE_TOO_LONG]: {
+    code: 1202,
+    message: 'Frame title must not exceed 100 characters',
+    httpStatus: HttpStatus.BAD_REQUEST,
+  },
+  [ErrorCode.FRAME_NOT_FOUND]: {
+    code: 1203,
+    message: 'Frame not found',
+    httpStatus: HttpStatus.NOT_FOUND,
+  },
+  [ErrorCode.FRAME_INVALID_ID]: {
+    code: 1204,
+    message: 'Invalid frame ID format',
+    httpStatus: HttpStatus.BAD_REQUEST,
+  },
+  [ErrorCode.FRAME_UPLOAD_FAILED]: {
+    code: 1205,
+    message: 'Failed to upload frame icon',
+    httpStatus: HttpStatus.INTERNAL_SERVER_ERROR,
+  },
+  [ErrorCode.FRAME_INVALID_FILE_TYPE]: {
+    code: 1206,
+    message: 'Invalid file type. Only images are allowed',
+    httpStatus: HttpStatus.BAD_REQUEST,
+  },
+  [ErrorCode.FRAME_FILE_TOO_LARGE]: {
+    code: 1207,
+    message: 'File size too large. Maximum size is 5MB',
     httpStatus: HttpStatus.BAD_REQUEST,
   },
 };
