@@ -1,4 +1,4 @@
-import { IsString, IsOptional, MaxLength, IsEnum } from 'class-validator';
+import { IsString, IsOptional, MaxLength, IsEnum, IsMongoId } from 'class-validator';
 
 export class UpdateTaskDto {
   @IsOptional()
@@ -16,6 +16,6 @@ export class UpdateTaskDto {
   status?: string;
 
   @IsOptional()
-  @IsString()
+  @IsMongoId({ message: 'assigned_to must be a valid MongoDB ID' })
   assigned_to?: string;
 }

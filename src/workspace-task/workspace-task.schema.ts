@@ -4,39 +4,8 @@ import mongoose from 'mongoose';
 
 export type WorkspaceTaskDocument = WorkspaceTask & Document;
 
-export type SubtaskDocument = Subtask & Document;
-
-// Subtask Schema (embedded in WorkspaceTask)
-@Schema({ _id: true, timestamps: true })
-export class Subtask {
-  _id: mongoose.Types.ObjectId;
-
-  @Prop({ required: true, trim: true })
-  title: string;
-
-  @Prop({ trim: true })
-  description?: string;
-
-  @Prop({ required: true, type: Types.ObjectId, ref: 'User' })
-  assigned_to: Types.ObjectId;
-
-  @Prop({ default: 'to-do', enum: ['to-do', 'in-progress', 'done'] })
-  status: string;
-
-  @Prop({ type: Types.ObjectId, ref: 'User' })
-  completed_by?: Types.ObjectId;
-
-  @Prop()
-  completed_at?: Date;
-
-  createdAt?: Date;
-  updatedAt?: Date;
-}
-
-export const SubtaskSchema = SchemaFactory.createForClass(Subtask);
-
 // Main WorkspaceTask Schema
-@Schema({ timestamps: true })
+@Schema({ timestamps: true, collection: 'workspace_tasks' })
 export class WorkspaceTask {
   _id: mongoose.Types.ObjectId;
 
@@ -57,13 +26,6 @@ export class WorkspaceTask {
 
   @Prop({ default: 'to-do', enum: ['to-do', 'in-progress', 'done'] })
   status: string;
-
-  // Embedded subtasks
-  @Prop({ type: [SubtaskSchema], default: [] })
-  subtasks: Subtask[];
-
-  @Prop({ default: 0 })
-  subtask_completed_count: number;
 
   @Prop()
   completed_at?: Date;
