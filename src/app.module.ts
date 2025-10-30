@@ -27,6 +27,8 @@ import { AchievementModule } from './achievement/achievement.module';
 import { WorkspaceModule } from './workspace/workspace.module';
 import { WorkspaceTaskModule } from './workspace-task/workspace-task.module';
 import { UserInventoryModule } from './user-inventory/user-inventory.module';
+import { MarketplaceModule } from './marketplace/marketplace.module';
+import { PurchaseHistoryModule } from './purchase-history/purchase-history.module';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -60,6 +62,8 @@ import { UserInventoryModule } from './user-inventory/user-inventory.module';
     WorkspaceTaskModule,
     UserInventoryModule,
 
+    PurchaseHistoryModule,
+    MarketplaceModule,
   ],
   controllers: [AppController],
   providers: [
