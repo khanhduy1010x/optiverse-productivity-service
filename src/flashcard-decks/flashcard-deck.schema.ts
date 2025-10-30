@@ -15,6 +15,9 @@ export class FlashcardDeck {
 
   @Prop()
   description?: string;
+
+  @Prop({ type: Types.ObjectId })
+  ref_id?: Types.ObjectId;
 }
 
 export const FlashcardDeckSchema = SchemaFactory.createForClass(FlashcardDeck);

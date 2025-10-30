@@ -52,6 +52,10 @@ export enum ErrorCode {
   FRAME_UPLOAD_FAILED,
   FRAME_INVALID_FILE_TYPE,
   FRAME_FILE_TOO_LARGE,
+  // Marketplace specific error codes
+  INSUFFICIENT_BALANCE,
+  INVALID_REQUEST,
+  ALREADY_PURCHASED,
 }
 export const ErrorDetails = {
   [ErrorCode.INVALID_CODE]: {
@@ -300,6 +304,21 @@ export const ErrorDetails = {
   [ErrorCode.FRAME_FILE_TOO_LARGE]: {
     code: 1207,
     message: 'File size too large. Maximum size is 5MB',
+    httpStatus: HttpStatus.BAD_REQUEST,
+  },
+  [ErrorCode.INSUFFICIENT_BALANCE]: {
+    code: 1208,
+    message: 'Insufficient balance to purchase this item',
+    httpStatus: HttpStatus.BAD_REQUEST,
+  },
+  [ErrorCode.INVALID_REQUEST]: {
+    code: 1209,
+    message: 'Invalid request',
+    httpStatus: HttpStatus.BAD_REQUEST,
+  },
+  [ErrorCode.ALREADY_PURCHASED]: {
+    code: 1210,
+    message: 'You have already purchased this item',
     httpStatus: HttpStatus.BAD_REQUEST,
   },
 };

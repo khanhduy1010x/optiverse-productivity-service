@@ -10,4 +10,8 @@ export class CreateFlashcardDeckRequest {
   @ApiProperty({ example: 'description' })
   @IsOptional()
   description?: string;
+
+  @ApiProperty({ example: 'ref_id', required: false })
+  @IsOptional()
+  ref_id?: string | Types.ObjectId;
 }

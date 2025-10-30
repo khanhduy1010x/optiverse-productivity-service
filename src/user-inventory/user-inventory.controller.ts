@@ -356,6 +356,11 @@ export class UserInventoryController {
   
   /**
    * Lấy thông tin inventory của user (điểm, frame, ...)
+    private readonly userInventoryService: UserInventoryService
+  ) {}
+
+  /**
+   * Lấy thông tin inventory của user (điểm, ...)
    */
   @Get()
   async getByUserId(@Req() req: any): Promise<ApiResponseWrapper<UserInventory[]>> {
