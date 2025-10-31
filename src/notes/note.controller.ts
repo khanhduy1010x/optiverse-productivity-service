@@ -16,6 +16,8 @@ import { UpdateNoteRequest } from './dto/request/UpdateNoteRequest.dto';
 import { Note } from './note.schema';
 import { ApiBearerAuth, ApiBody, ApiParam } from '@nestjs/swagger';
 import { UserDto } from 'src/user-dto/user.dto';
+import { CreateNoteRoomRequest } from './dto/request/CreateNoteRoomRequest.dto';
+import { DeleteNoteRoomRequest } from './dto/request/DeleteNoteRoomRequest.dto';
 
 @ApiBearerAuth('access-token')
 @Controller('/note')
@@ -48,6 +50,17 @@ export class NoteController {
     return new ApiResponse<NoteResponse>(note);
   }
 
+  @ApiBody({ type: CreateNoteRoomRequest })
+  @Post('create-note-room')
+  async createNoteInRoom(
+    @Request() req,
+    @Body() body: CreateNoteRoomRequest,
+  ): Promise<ApiResponse<NoteResponse>> {
+    const user = req.userInfo as UserDto;
+    const note = await this.noteService.createNoteInRoom(body, user.userId);
+    return new ApiResponse<NoteResponse>(note);
+  }
+
   @ApiParam({
     name: 'id',
     type: String,
@@ -70,6 +83,33 @@ export class NoteController {
   async deleteNote(@Param('id') noteId: string): Promise<ApiResponse<void>> {
     await this.noteService.deleteNote(noteId);
     return new ApiResponse<void>();
+  }
+
+  @ApiParam({
+    name: 'noteId',
+    type: String,
+    description: 'Note ID to delete',
+  })
+  @Delete('delete-note-room/:noteId')
+  async deleteNoteInRoom(
+    @Param('noteId') noteId: string,
+    @Request() req,
+  ): Promise<ApiResponse<{ _id: string; deletedAt: Date }>> {
+    const user = req.userInfo as UserDto;
+    await this.noteService.deleteNoteInRoom(noteId);
+    console.log(`✅ Note ${noteId} deleted by user ${user.userId}`);
+    return new ApiResponse<{ _id: string; deletedAt: Date }>({
+      _id: noteId,
+      deletedAt: new Date(),
+    });
+  }
+
+  @Get('room/:roomId')
+  async getNotesByRoomId(
+    @Param('roomId') roomId: string,
+  ): Promise<ApiResponse<Note[]>> {
+    const notes = await this.noteService.getNotesByRoomId(roomId);
+    return new ApiResponse<Note[]>(notes);
   }
 
   @Get('/:noteId')

@@ -16,13 +16,30 @@ export class WorkspacePermission {
 
   @Prop({
     required: true,
-    enum: ['task', 'flashcard', 'note', 'schedule', 'chat', 'blog'],
+    enum: [
+      'task',
+      'flashcard',
+      'note',
+      'schedule',
+      'chat',
+      'blog',
+      'live_room',
+    ],
   })
   module: string;
 
   @Prop({
     type: [String],
-    enum: ['CREATE', 'READ', 'UPDATE', 'DELETE', 'MANAGE'],
+    enum: [
+      'CREATE',
+      'READ',
+      'UPDATE',
+      'DELETE',
+      'MANAGE',
+
+      'ROOM_ADMIN',
+      'ROOM_USER',
+    ],
     default: ['READ'],
   })
   actions: string[];

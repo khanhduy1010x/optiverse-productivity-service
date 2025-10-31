@@ -56,6 +56,14 @@ export enum ErrorCode {
   INSUFFICIENT_BALANCE,
   INVALID_REQUEST,
   ALREADY_PURCHASED,
+  // Focus Room specific error codes
+  ROOM_NOT_FOUND,
+  INVALID_ROOM_ID,
+  ROOM_PASSWORD_INCORRECT,
+  ROOM_REQUIRES_PASSWORD,
+  ROOM_ACCESS_DENIED,
+  ROOM_JOIN_REQUEST_PENDING,
+  ROOM_USER_NOT_AUTHENTICATED,
 }
 export const ErrorDetails = {
   [ErrorCode.INVALID_CODE]: {
@@ -320,5 +328,41 @@ export const ErrorDetails = {
     code: 1210,
     message: 'You have already purchased this item',
     httpStatus: HttpStatus.BAD_REQUEST,
+  },
+  // Focus Room error details
+  [ErrorCode.ROOM_NOT_FOUND]: {
+    code: 1200,
+    message: 'Room not found',
+    httpStatus: HttpStatus.NOT_FOUND,
+  },
+  [ErrorCode.INVALID_ROOM_ID]: {
+    code: 1201,
+    message: 'Invalid room ID',
+    httpStatus: HttpStatus.BAD_REQUEST,
+  },
+  [ErrorCode.ROOM_PASSWORD_INCORRECT]: {
+    code: 1202,
+    message: 'Password không chính xác',
+    httpStatus: HttpStatus.BAD_REQUEST,
+  },
+  [ErrorCode.ROOM_REQUIRES_PASSWORD]: {
+    code: 1203,
+    message: 'Room yêu cầu password hoặc gửi yêu cầu tham gia',
+    httpStatus: HttpStatus.BAD_REQUEST,
+  },
+  [ErrorCode.ROOM_ACCESS_DENIED]: {
+    code: 1204,
+    message: 'Bạn cần gửi yêu cầu tham gia và chờ phê duyệt từ admin',
+    httpStatus: HttpStatus.FORBIDDEN,
+  },
+  [ErrorCode.ROOM_JOIN_REQUEST_PENDING]: {
+    code: 1205,
+    message: 'Đã gửi yêu cầu tham gia, chờ phê duyệt từ admin',
+    httpStatus: HttpStatus.BAD_REQUEST,
+  },
+  [ErrorCode.ROOM_USER_NOT_AUTHENTICATED]: {
+    code: 1206,
+    message: 'User not authenticated',
+    httpStatus: HttpStatus.UNAUTHORIZED,
   },
 };

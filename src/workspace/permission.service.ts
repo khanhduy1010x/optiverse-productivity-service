@@ -1,7 +1,10 @@
 import { Injectable } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model, Types } from 'mongoose';
 import { WorkspaceRepository } from './workspace.repository';
 import { AppException } from 'src/common/exceptions/app.exception';
 import { ErrorCode } from 'src/common/exceptions/error-code.enum';
+import { WorkspacePermissionService } from './workspace-permission.service';
 
 export enum Permission {
   RENAME_WORKSPACE = 'RENAME_WORKSPACE',
@@ -14,7 +17,10 @@ export enum Permission {
 
 @Injectable()
 export class PermissionService {
-  constructor(private readonly workspaceRepository: WorkspaceRepository) {}
+  constructor(
+    private readonly workspaceRepository: WorkspaceRepository,
+    private readonly workspacePermissionService: WorkspacePermissionService,
+  ) {}
 
   /**
    * Check if user has specific permission in workspace
@@ -170,5 +176,23 @@ export class PermissionService {
     if (member.role !== 'admin') {
       throw new AppException(ErrorCode.UNAUTHORIZED);
     }
+  }
+
+  /**
+   * Tạo default permissions cho user mới vào workspace
+   * @param workspaceId ID workspace
+   * @param userId ID user được thêm vào
+   * @param role 'admin' | 'user' (từ member role)
+   */
+  async createDefaultPermissions(
+    workspaceId: string,
+    userId: string,
+    role: 'admin' | 'user' = 'user',
+  ): Promise<void> {
+    await this.workspacePermissionService.createDefaultPermissions(
+      workspaceId,
+      userId,
+      role,
+    );
   }
 }

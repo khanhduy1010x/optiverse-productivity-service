@@ -60,6 +60,13 @@ export class WorkspaceService {
       'admin',
     );
 
+    // Tạo default permissions cho owner
+    await this.permissionService.createDefaultPermissions(
+      workspace._id.toString(),
+      userId,
+      'admin',
+    );
+
     if (createWorkspaceDto.memberIds && createWorkspaceDto.memberIds.length) {
       const uniqueIds = Array.from(
         new Set(
@@ -586,6 +593,13 @@ export class WorkspaceService {
       'user', // Default role
     );
 
+    // Tạo default permissions cho user
+    await this.permissionService.createDefaultPermissions(
+      workspace._id.toString(),
+      userId,
+      'user',
+    );
+
     // Update member count
     await this.workspaceRepository.updateWorkspace(workspace._id.toString(), {
       member_count: workspace.member_count + 1,
@@ -851,7 +865,7 @@ export class WorkspaceService {
         invitation.workspace_id.toString(),
         userId,
       );
-      
+
       // If user is not a member or not banned, include the invitation
       if (!member || member.status !== 'banned') {
         validInvitations.push(invitation);
@@ -863,8 +877,12 @@ export class WorkspaceService {
     }
 
     // Get all workspace IDs and requester IDs from valid invitations
-    const workspaceIds = validInvitations.map((inv) => inv.workspace_id.toString());
-    const requesterIds = validInvitations.map((inv) => inv.requester_id.toString());
+    const workspaceIds = validInvitations.map((inv) =>
+      inv.workspace_id.toString(),
+    );
+    const requesterIds = validInvitations.map((inv) =>
+      inv.requester_id.toString(),
+    );
     const uniqueWorkspaceIds = [...new Set(workspaceIds)];
     const uniqueRequesterIds = [...new Set(requesterIds)];
 
@@ -929,57 +947,62 @@ export class WorkspaceService {
     };
 
     // Transform invitations to DTOs
-    const result: JoinRequestResponseDto[] = validInvitations.map((invitation) => {
-      // Find corresponding workspace
-      const workspace = workspaces.find(
-        (ws) => ws && ws._id.toString() === invitation.workspace_id.toString(),
-      );
-      if (!workspace) {
-        throw new AppException(ErrorCode.NOT_FOUND);
-      }
+    const result: JoinRequestResponseDto[] = validInvitations.map(
+      (invitation) => {
+        // Find corresponding workspace
+        const workspace = workspaces.find(
+          (ws) =>
+            ws && ws._id.toString() === invitation.workspace_id.toString(),
+        );
+        if (!workspace) {
+          throw new AppException(ErrorCode.NOT_FOUND);
+        }
 
-      // Find workspace members
-      const workspaceMembersResult = allMembersResults.find(
-        (result) => result && result.workspaceId === workspace._id.toString(),
-      );
-      const workspaceMembers = workspaceMembersResult?.members || [];
+        // Find workspace members
+        const workspaceMembersResult = allMembersResults.find(
+          (result) => result && result.workspaceId === workspace._id.toString(),
+        );
+        const workspaceMembers = workspaceMembersResult?.members || [];
 
-      // Find owner
-      const owner = workspaceMembers.find((member) => member.role === 'admin');
-      const ownerInfo = usersInfo.find(
-        (user) => user.user_id === owner?.user_id.toString(),
-      );
+        // Find owner
+        const owner = workspaceMembers.find(
+          (member) => member.role === 'admin',
+        );
+        const ownerInfo = usersInfo.find(
+          (user) => user.user_id === owner?.user_id.toString(),
+        );
 
-      // Find requester info
-      const requesterInfo = usersInfo.find(
-        (user) => user.user_id === invitation.requester_id.toString(),
-      );
+        // Find requester info
+        const requesterInfo = usersInfo.find(
+          (user) => user.user_id === invitation.requester_id.toString(),
+        );
 
-      // Get member count
-      const memberCount = workspaceMembers.length;
+        // Get member count
+        const memberCount = workspaceMembers.length;
 
-      // Create workspace info DTO
-      const workspaceInfo: WorkspaceInfoDto = {
-        id: workspace._id.toString(),
-        name: workspace.name,
-        description: workspace.description || '',
-        hasPassword: !!workspace.password,
-        memberCount: memberCount,
-        owner: mapUserToDto(ownerInfo || null),
-      };
+        // Create workspace info DTO
+        const workspaceInfo: WorkspaceInfoDto = {
+          id: workspace._id.toString(),
+          name: workspace.name,
+          description: workspace.description || '',
+          hasPassword: !!workspace.password,
+          memberCount: memberCount,
+          owner: mapUserToDto(ownerInfo || null),
+        };
 
-      // Create join request response DTO
-      const joinRequestDto: JoinRequestResponseDto = {
-        requestId: invitation._id.toString(),
-        type: invitation.type,
-        message: invitation.message,
-        createdAt: invitation.createdAt || new Date(),
-        workspace: workspaceInfo,
-        requester: mapUserToDto(requesterInfo || null),
-      };
+        // Create join request response DTO
+        const joinRequestDto: JoinRequestResponseDto = {
+          requestId: invitation._id.toString(),
+          type: invitation.type,
+          message: invitation.message,
+          createdAt: invitation.createdAt || new Date(),
+          workspace: workspaceInfo,
+          requester: mapUserToDto(requesterInfo || null),
+        };
 
-      return joinRequestDto;
-    });
+        return joinRequestDto;
+      },
+    );
 
     return result;
   }
@@ -1144,6 +1167,13 @@ export class WorkspaceService {
     await this.workspaceRepository.addMember(workspaceId, targetUserId, 'user');
     await this.workspaceRepository.incrementMemberCount(workspaceId);
 
+    // Tạo default permissions cho user mới
+    await this.permissionService.createDefaultPermissions(
+      workspaceId,
+      targetUserId,
+      'user',
+    );
+
     // Delete the join request
     await this.workspaceRepository.deleteJoinRequest(request._id.toString());
   }
@@ -1218,6 +1248,13 @@ export class WorkspaceService {
     );
     await this.workspaceRepository.incrementMemberCount(
       request.workspace_id.toString(),
+    );
+
+    // Tạo default permissions cho user mới
+    await this.permissionService.createDefaultPermissions(
+      request.workspace_id.toString(),
+      userId,
+      'user',
     );
 
     // Delete the invitation request

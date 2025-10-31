@@ -2,7 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { AuthMiddleware } from './midlleware/auth.middleware';
-
+import * as bodyParser from 'body-parser';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.useGlobalPipes(
@@ -11,11 +11,15 @@ async function bootstrap() {
       transform: true,
     }),
   );
-   app.enableCors({
+  app.enableCors({
     origin: true,
     credentials: true, // nếu dùng cookie hoặc cần gửi token
   });
   app.use(new AuthMiddleware().use);
   await app.listen(process.env.PORT ?? 3001);
+  app.use(
+    '/focus-room/public/webhook/livekit',
+    bodyParser.raw({ type: '*/*' }),
+  );
 }
 bootstrap();

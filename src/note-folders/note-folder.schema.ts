@@ -43,11 +43,13 @@ export type RootItem = NoteFolderTree | NoteWithType;
 export class NoteFolder {
   _id: mongoose.Types.ObjectId;
 
-  @Prop({ required: true, type: Types.ObjectId, ref: 'User' })
-  user_id: Types.ObjectId;
+  @Prop({ required: false, type: Types.ObjectId, ref: 'User' })
+  user_id?: Types.ObjectId;
 
   @Prop({ type: Types.ObjectId, ref: 'NoteFolder' })
   parent_folder_id?: Types.ObjectId;
+  @Prop({ required: true, type: Types.ObjectId, ref: 'LiveRoom' })
+  live_room_id?: Types.ObjectId;
 
   @Prop({ required: true })
   name: string;

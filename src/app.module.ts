@@ -29,6 +29,9 @@ import { WorkspaceTaskModule } from './workspace-task/workspace-task.module';
 import { UserInventoryModule } from './user-inventory/user-inventory.module';
 import { MarketplaceModule } from './marketplace/marketplace.module';
 import { PurchaseHistoryModule } from './purchase-history/purchase-history.module';
+import { LiveRoomModule } from './focus-room/live-room.module';
+import { WebhookModule } from './focus-room/webhook.module';
+import { SpeechModule } from './speech/speech.module';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -37,6 +40,7 @@ import { PurchaseHistoryModule } from './purchase-history/purchase-history.modul
     }),
     DatabaseModule,
     AxiosClientModule,
+    WebhookModule,
     // Import base modules first
     TagModule,
     TaskTagModule,
@@ -64,6 +68,8 @@ import { PurchaseHistoryModule } from './purchase-history/purchase-history.modul
 
     PurchaseHistoryModule,
     MarketplaceModule,
+    LiveRoomModule,
+    SpeechModule,
   ],
   controllers: [AppController],
   providers: [

@@ -106,6 +106,89 @@ export class WorkspaceWebSocketGateway
 
   // ========== Event Listeners ==========
 
+  // Focus room join request created - notify dashboard users
+  @OnEvent('focus-room.join-request.created')
+  handleFocusRoomJoinRequestCreated(payload: {
+    roomId: string;
+    userId: string;
+    workspaceId?: string;
+    timestamp: Date;
+  }) {
+    if (payload.workspaceId) {
+      const dashboardRoom = `workspace:${payload.workspaceId}:dashboard`;
+
+      this.server.to(dashboardRoom).emit('focus-room-join-request-created', {
+        roomId: payload.roomId,
+        userId: payload.userId,
+        workspaceId: payload.workspaceId,
+        timestamp: payload.timestamp,
+      });
+
+      console.log(
+        `Emitted focus-room-join-request-created event to dashboard room ${dashboardRoom}`,
+        payload,
+      );
+    }
+  }
+
+  // Focus room join request approved - notify dashboard users
+  @OnEvent('focus-room.join-request.approved')
+  handleFocusRoomJoinRequestApproved(payload: {
+    roomId: string;
+    requestId: string;
+    targetUserId: string;
+    approvedBy: string;
+    workspaceId?: string;
+    timestamp: Date;
+  }) {
+    if (payload.workspaceId) {
+      const dashboardRoom = `workspace:${payload.workspaceId}:dashboard`;
+
+      this.server.to(dashboardRoom).emit('focus-room-join-request-approved', {
+        roomId: payload.roomId,
+        requestId: payload.requestId,
+        targetUserId: payload.targetUserId,
+        approvedBy: payload.approvedBy,
+        workspaceId: payload.workspaceId,
+        timestamp: payload.timestamp,
+      });
+
+      console.log(
+        `Emitted focus-room-join-request-approved event to dashboard room ${dashboardRoom}`,
+        payload,
+      );
+    }
+  }
+
+  // Focus room join request rejected - notify dashboard users
+  @OnEvent('focus-room.join-request.rejected')
+  handleFocusRoomJoinRequestRejected(payload: {
+    roomId: string;
+    requestId: string;
+    targetUserId: string;
+    rejectedBy: string;
+    workspaceId?: string;
+    timestamp: Date;
+  }) {
+    if (payload.workspaceId) {
+      const dashboardRoom = `workspace:${payload.workspaceId}:dashboard`;
+
+      this.server.to(dashboardRoom).emit('focus-room-join-request-rejected', {
+        roomId: payload.roomId,
+        requestId: payload.requestId,
+        targetUserId: payload.targetUserId,
+        rejectedBy: payload.rejectedBy,
+        workspaceId: payload.workspaceId,
+        timestamp: payload.timestamp,
+      });
+
+      console.log(
+        `Emitted focus-room-join-request-rejected event to dashboard room ${dashboardRoom}`,
+        payload,
+      );
+    }
+  }
+
   // Member was banned - notify all workspace users
   @OnEvent('workspace.member.banned')
   handleMemberBanned(payload: {

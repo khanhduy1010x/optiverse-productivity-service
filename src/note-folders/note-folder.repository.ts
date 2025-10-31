@@ -9,7 +9,10 @@ import { UpdateNoteFolderRequest } from './dto/request/UpdateNoteFolderRequest.d
 
 @Injectable()
 export class NoteFolderRepository {
-  constructor(@InjectModel(NoteFolder.name) private readonly noteFolderModel: Model<NoteFolder>) {}
+  constructor(
+    @InjectModel(NoteFolder.name)
+    private readonly noteFolderModel: Model<NoteFolder>,
+  ) {}
 
   async getNoteFolderById(id: string): Promise<NoteFolder | null> {
     return await this.noteFolderModel.findById(id).populate('files').lean();
@@ -41,7 +44,23 @@ export class NoteFolderRepository {
     return await this.noteFolderModel
       .find({
         user_id: new Types.ObjectId(userId),
-        $or: [{ parent_folder_id: null }, { parent_folder_id: { $exists: false } }],
+        $or: [
+          { parent_folder_id: null },
+          { parent_folder_id: { $exists: false } },
+        ],
+      })
+      .populate('files')
+      .lean();
+  }
+
+  async getNoteFolderByRoomId(roomId: string): Promise<NoteFolder | null> {
+    return await this.noteFolderModel
+      .findOne({
+        live_room_id: new Types.ObjectId(roomId),
+        $or: [
+          { parent_folder_id: null },
+          { parent_folder_id: { $exists: false } },
+        ],
       })
       .populate('files')
       .lean();
@@ -57,6 +76,19 @@ export class NoteFolderRepository {
       parent_folder_id: createNoteFolderDto.parent_folder_id
         ? new Types.ObjectId(createNoteFolderDto.parent_folder_id)
         : null,
+    });
+    return await newNoteFolder.save();
+  }
+
+  async createNoteFolderForRoom(
+    roomId: string,
+    userId: string,
+  ): Promise<NoteFolder> {
+    const newNoteFolder = new this.noteFolderModel({
+      name: `Room Notes`,
+      user_id: new Types.ObjectId(userId),
+      live_room_id: new Types.ObjectId(roomId),
+      parent_folder_id: null,
     });
     return await newNoteFolder.save();
   }
@@ -81,7 +113,9 @@ export class NoteFolderRepository {
   }
 
   async deleteNoteFolder(noteFolderId: string): Promise<void> {
-    const result = await this.noteFolderModel.deleteOne({ _id: noteFolderId }).exec();
+    const result = await this.noteFolderModel
+      .deleteOne({ _id: noteFolderId })
+      .exec();
     if (result.deletedCount === 0) {
       throw new AppException(ErrorCode.NOT_FOUND);
     }
