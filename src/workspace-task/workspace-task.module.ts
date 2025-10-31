@@ -4,9 +4,14 @@ import {
   WorkspaceTask,
   WorkspaceTaskSchema,
 } from './workspace-task.schema';
+import {
+  WorkspaceTaskMemberPermission,
+  WorkspaceTaskMemberPermissionSchema,
+} from './workspace-task-member-permission.schema';
 import { WorkspaceTaskController } from './workspace-task.controller';
 import { WorkspaceTaskService } from './workspace-task.service';
 import { WorkspaceTaskRepository } from './workspace-task.repository';
+import { WorkspaceTaskPermissionService } from './workspace-task-permission.service';
 import { WorkspaceModule } from '../workspace/workspace.module';
 
 @Module({
@@ -16,11 +21,23 @@ import { WorkspaceModule } from '../workspace/workspace.module';
         name: WorkspaceTask.name,
         schema: WorkspaceTaskSchema,
       },
+      {
+        name: WorkspaceTaskMemberPermission.name,
+        schema: WorkspaceTaskMemberPermissionSchema,
+      },
     ]),
     WorkspaceModule,
   ],
   controllers: [WorkspaceTaskController],
-  providers: [WorkspaceTaskService, WorkspaceTaskRepository],
-  exports: [WorkspaceTaskService, WorkspaceTaskRepository],
+  providers: [
+    WorkspaceTaskService,
+    WorkspaceTaskRepository,
+    WorkspaceTaskPermissionService,
+  ],
+  exports: [
+    WorkspaceTaskService,
+    WorkspaceTaskRepository,
+    WorkspaceTaskPermissionService,
+  ],
 })
 export class WorkspaceTaskModule {}

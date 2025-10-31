@@ -19,6 +19,7 @@ import { ApiResponse } from 'src/common/api-response';
 import { WorkspaceTask } from './workspace-task.schema';
 import { AppException } from 'src/common/exceptions/app.exception';
 import { ErrorCode } from 'src/common/exceptions/error-code.enum';
+import { TaskRolePreset } from './task-permission.enum';
 
 @ApiTags('workspace-task')
 @ApiBearerAuth('access-token')
@@ -53,6 +54,8 @@ export class WorkspaceTaskController {
         createTaskDto.title,
         createTaskDto.description,
         assignedTo,
+        createTaskDto.end_time,
+        createTaskDto.assigned_to_list,
       );
       this.logger.log(`[createTask] Task created successfully:`, task._id);
       return new ApiResponse<WorkspaceTask>(task);
@@ -169,8 +172,11 @@ export class WorkspaceTaskController {
       if (updateTaskDto.description !== undefined) {
         updateData.description = updateTaskDto.description;
       }
+      // NOTE: Do NOT update status via updateTask - use updateTaskStatus endpoint instead
+      // This ensures status changes are intentional and logged
       if (updateTaskDto.status !== undefined) {
-        updateData.status = updateTaskDto.status;
+        this.logger.warn(`[updateTask] Attempted to update status directly - ignoring. Use updateTaskStatus endpoint instead.`);
+        // Don't update status
       }
       if (updateTaskDto.assigned_to !== undefined) {
         // Convert string to ObjectId
@@ -179,6 +185,21 @@ export class WorkspaceTaskController {
         } else {
           throw new Error('Invalid assigned_to ID format');
         }
+      }
+      if (updateTaskDto.assigned_to_list !== undefined) {
+        // Convert array of strings to ObjectIds
+        if (updateTaskDto.assigned_to_list.length > 0) {
+          const validIds = updateTaskDto.assigned_to_list.every(id => Types.ObjectId.isValid(id));
+          if (!validIds) {
+            throw new Error('Invalid ID in assigned_to_list');
+          }
+          updateData.assigned_to_list = updateTaskDto.assigned_to_list.map(id => new Types.ObjectId(id));
+        } else {
+          updateData.assigned_to_list = [];
+        }
+      }
+      if (updateTaskDto.end_time !== undefined) {
+        updateData.end_time = updateTaskDto.end_time ? new Date(updateTaskDto.end_time) : null;
       }
 
       this.logger.debug(`[updateTask] Update data to be sent:`, JSON.stringify(updateData));
@@ -221,13 +242,15 @@ export class WorkspaceTaskController {
   async assignTask(
     @Request() req,
     @Param('taskId') taskId: string,
-    @Body() { userId }: { userId: string },
+    @Body() { userId, userIds }: { userId?: string; userIds?: string[] },
   ): Promise<ApiResponse<WorkspaceTask>> {
     const user = req.userInfo as UserDto;
+    // Support both single userId (legacy) and userIds array (new)
+    const assignToUserIds = userIds || (userId ? [userId] : []);
     const task = await this.workspaceTaskService.assignTask(
       taskId,
       user.userId,
-      userId,
+      assignToUserIds,
     );
     return new ApiResponse<WorkspaceTask>(task);
   }
@@ -248,6 +271,93 @@ export class WorkspaceTaskController {
       return new ApiResponse<WorkspaceTask>(task);
     } catch (error) {
       this.logger.error(`[updateTaskStatus] Error: ${error.message}`, error.stack);
+      if (error instanceof AppException) {
+        throw error;
+      }
+      throw new AppException(ErrorCode.SERVER_ERROR);
+    }
+  }
+
+  // ========== Task Permission Endpoints ==========
+  @Post(':taskId/grant-permission')
+  async grantTaskPermission(
+    @Request() req,
+    @Param('taskId') taskId: string,
+    @Body() { memberId, role }: { memberId: string; role: TaskRolePreset },
+  ): Promise<ApiResponse<void>> {
+    try {
+      const user = req.userInfo as UserDto;
+      await this.workspaceTaskService.grantTaskPermission(
+        taskId,
+        memberId,
+        role,
+        user.userId,
+      );
+      return new ApiResponse<void>(null);
+    } catch (error) {
+      this.logger.error(`[grantTaskPermission] Error: ${error.message}`, error.stack);
+      if (error instanceof AppException) {
+        throw error;
+      }
+      throw new AppException(ErrorCode.SERVER_ERROR);
+    }
+  }
+
+  @Post(':taskId/transfer-ownership')
+  async transferTaskOwnership(
+    @Request() req,
+    @Param('taskId') taskId: string,
+    @Body() { newOwnerId }: { newOwnerId: string },
+  ): Promise<ApiResponse<void>> {
+    try {
+      const user = req.userInfo as UserDto;
+      await this.workspaceTaskService.transferTaskOwnership(
+        taskId,
+        user.userId,
+        newOwnerId,
+      );
+      return new ApiResponse<void>(null);
+    } catch (error) {
+      this.logger.error(`[transferTaskOwnership] Error: ${error.message}`, error.stack);
+      if (error instanceof AppException) {
+        throw error;
+      }
+      throw new AppException(ErrorCode.SERVER_ERROR);
+    }
+  }
+
+  @Get(':taskId/permissions')
+  async getTaskPermissions(
+    @Param('taskId') taskId: string,
+  ): Promise<ApiResponse<any>> {
+    try {
+      const members = await this.workspaceTaskService.getTaskMembers(taskId);
+      return new ApiResponse<any>(members);
+    } catch (error) {
+      this.logger.error(`[getTaskPermissions] Error: ${error.message}`, error.stack);
+      if (error instanceof AppException) {
+        throw error;
+      }
+      throw new AppException(ErrorCode.SERVER_ERROR);
+    }
+  }
+
+  @Delete(':taskId/remove-permission')
+  async removeTaskPermission(
+    @Request() req,
+    @Param('taskId') taskId: string,
+    @Body() { memberId }: { memberId: string },
+  ): Promise<ApiResponse<void>> {
+    try {
+      const user = req.userInfo as UserDto;
+      await this.workspaceTaskService.removeTaskPermission(
+        taskId,
+        memberId,
+        user.userId,
+      );
+      return new ApiResponse<void>(null);
+    } catch (error) {
+      this.logger.error(`[removeTaskPermission] Error: ${error.message}`, error.stack);
       if (error instanceof AppException) {
         throw error;
       }
