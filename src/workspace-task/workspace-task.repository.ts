@@ -21,9 +21,11 @@ export class WorkspaceTaskRepository {
     description: string | undefined,
     createdBy: string,
     assignedTo?: string,
+    endTime?: string,
+    assignedToList?: string[],
   ): Promise<WorkspaceTask> {
     try {
-      this.logger.log(`[createTask] Creating task - workspaceId: ${workspaceId}, title: ${title}, createdBy: ${createdBy}, assignedTo: ${assignedTo}`);
+      this.logger.log(`[createTask] Creating task - workspaceId: ${workspaceId}, title: ${title}, createdBy: ${createdBy}, assignedTo: ${assignedTo}, endTime: ${endTime}`);
       
       // Validate ObjectIds
       if (!Types.ObjectId.isValid(workspaceId)) {
@@ -38,6 +40,14 @@ export class WorkspaceTaskRepository {
         this.logger.error(`[createTask] Invalid assignedTo: ${assignedTo}`);
         throw new AppException(ErrorCode.INVALID_CODE);
       }
+      if (assignedToList && assignedToList.length > 0) {
+        for (const id of assignedToList) {
+          if (!Types.ObjectId.isValid(id)) {
+            this.logger.error(`[createTask] Invalid ID in assignedToList: ${id}`);
+            throw new AppException(ErrorCode.INVALID_CODE);
+          }
+        }
+      }
 
       const newTask = new this.workspaceTaskModel({
         workspace_id: new Types.ObjectId(workspaceId),
@@ -45,7 +55,9 @@ export class WorkspaceTaskRepository {
         description,
         created_by: new Types.ObjectId(createdBy),
         assigned_to: assignedTo ? new Types.ObjectId(assignedTo) : null,
+        assigned_to_list: assignedToList && assignedToList.length > 0 ? assignedToList.map(id => new Types.ObjectId(id)) : [],
         status: 'to-do',
+        end_time: endTime ? new Date(endTime) : null,
       });
       
       const savedTask = await newTask.save();
@@ -171,14 +183,31 @@ export class WorkspaceTaskRepository {
     }
   }
 
-  async assignTask(taskId: string, userId: string): Promise<WorkspaceTask> {
+  async assignTask(taskId: string, userIds: string | string[]): Promise<WorkspaceTask> {
     try {
       const taskObjectId = new Types.ObjectId(taskId);
-      const userObjectId = new Types.ObjectId(userId);
+      
+      // Support both single string (legacy) and array (new)
+      const ids = Array.isArray(userIds) 
+        ? userIds.map(id => new Types.ObjectId(id))
+        : userIds ? [new Types.ObjectId(userIds)] : [];
+
+      const updateData: any = {
+        assigned_to_list: ids,
+      };
+      
+      // For backward compatibility, also update assigned_to with first user if exists
+      if (ids.length > 0) {
+        updateData.assigned_to = ids[0];
+      } else {
+        // If no users, clear both fields
+        updateData.assigned_to = null;
+      }
+
       const result = await this.workspaceTaskModel
         .findByIdAndUpdate(
           taskObjectId,
-          { assigned_to: userObjectId },
+          updateData,
           { new: true },
         )
         .exec();
@@ -195,7 +224,6 @@ export class WorkspaceTaskRepository {
       throw new AppException(ErrorCode.SERVER_ERROR);
     }
   }
-
   async updateTaskStatus(taskId: string, status: string): Promise<WorkspaceTask> {
     const updateData: any = { status };
     if (status === 'done') {
