@@ -25,6 +25,7 @@ export class WorkspaceMember {
       'MANAGE_PASSWORD',
       'MANAGE_MEMBERS',
       'ACCEPT_MEMBER',
+      'MANAGE_PERMISSIONS',
     ],
     default: [],
   })

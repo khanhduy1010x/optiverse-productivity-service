@@ -1,6 +1,7 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { WorkspaceRepository } from './workspace.repository';
 import { PermissionService, Permission } from './permission.service';
+import { WorkspacePermissionService } from './workspace-permission.service';
 import { Workspace } from './workspace.schema';
 import { WorkspaceMember } from './workspace-member.schema';
 import { WorkspaceJoinRequest } from './workspace-join-request.schema';
@@ -37,6 +38,7 @@ export class WorkspaceService {
   constructor(
     private readonly workspaceRepository: WorkspaceRepository,
     private readonly permissionService: PermissionService,
+    private readonly workspacePermissionService: WorkspacePermissionService,
     private readonly userHttpClient: UserHttpClient,
     private readonly workspaceGateway: WorkspaceWebSocketGateway,
   ) {}
@@ -61,7 +63,7 @@ export class WorkspaceService {
     );
 
     // Tạo default permissions cho owner
-    await this.permissionService.createDefaultPermissions(
+    await this.workspacePermissionService.createDefaultPermissions(
       workspace._id.toString(),
       userId,
       'admin',
@@ -139,11 +141,64 @@ export class WorkspaceService {
       userMap.set(user.user_id, user);
     });
 
+    // Get workspace permissions for all members
+    const memberWorkspacePermissions = new Map<string, string[]>();
+
+    // Fetch workspace permissions for all member user IDs
+    for (const userId of memberUserIds) {
+      try {
+        const workspacePermissions =
+          await this.workspacePermissionService.getUserWorkspacePermissions(
+            workspaceId,
+            userId,
+          );
+
+        // Map workspace permission actions to frontend permission format
+        const workspaceActionMap: { [key: string]: string } = {
+          ROOM_ADMIN: 'room_admin',
+          ROOM_USER: 'room_user',
+        };
+
+        // Extract and map workspace permissions
+        const workspaceActions = workspacePermissions
+          .flatMap((permission) =>
+            permission.actions.map(
+              (action) => workspaceActionMap[action] || action,
+            ),
+          )
+          .filter(
+            (action) =>
+              action !== 'READ' &&
+              action !== 'CREATE' &&
+              action !== 'UPDATE' &&
+              action !== 'DELETE' &&
+              action !== 'MANAGE',
+          ); // Filter out basic CRUD permissions
+
+        memberWorkspacePermissions.set(userId, workspaceActions);
+      } catch (error) {
+        console.error(
+          `Failed to fetch workspace permissions for user ${userId}:`,
+          error,
+        );
+        memberWorkspacePermissions.set(userId, []);
+      }
+    }
+
     // Separate members by status
     const activeMembers = members
       .filter((m) => m.status === 'active')
       .map((member) => {
         const user = userMap.get(member.user_id.toString());
+        const userWorkspacePermissions =
+          memberWorkspacePermissions.get(member.user_id.toString()) || [];
+        const allPermissions = [
+          ...new Set([
+            ...(member.permissions || []),
+            ...userWorkspacePermissions,
+          ]),
+        ];
+
         return {
           user_id: member.user_id.toString(),
           email: user?.email || '',
@@ -152,7 +207,7 @@ export class WorkspaceService {
           role: member.role,
           status: member.status,
           time: member.joined_at,
-          permissions: member.permissions || [], // Include member permissions
+          permissions: allPermissions, // Include both member and workspace permissions
         };
       });
 
@@ -160,6 +215,15 @@ export class WorkspaceService {
       .filter((m) => m.status === 'banned')
       .map((member) => {
         const user = userMap.get(member.user_id.toString());
+        const userWorkspacePermissions =
+          memberWorkspacePermissions.get(member.user_id.toString()) || [];
+        const allPermissions = [
+          ...new Set([
+            ...(member.permissions || []),
+            ...userWorkspacePermissions,
+          ]),
+        ];
+
         return {
           user_id: member.user_id.toString(),
           email: user?.email || '',
@@ -168,7 +232,7 @@ export class WorkspaceService {
           role: member.role,
           status: member.status,
           time: member.updatedAt || member.createdAt || new Date(),
-          permissions: member.permissions || [], // Include member permissions
+          permissions: allPermissions, // Include both member and workspace permissions
         };
       });
 
@@ -233,6 +297,44 @@ export class WorkspaceService {
             currentUserMember.role === 'admin' ? 'admin' : 'member';
           currentUserPermissions = currentUserMember.permissions || [];
         }
+      }
+
+      // Get workspace permissions for the user
+      try {
+        const workspacePermissions =
+          await this.workspacePermissionService.getUserWorkspacePermissions(
+            workspaceId,
+            requestUserId,
+          );
+
+        // Map workspace permission actions to frontend permission format
+        const workspaceActionMap: { [key: string]: string } = {
+          ROOM_ADMIN: 'room_admin',
+          ROOM_USER: 'room_user',
+        };
+
+        // Extract and map workspace permissions
+        const workspaceActions = workspacePermissions
+          .flatMap((permission) =>
+            permission.actions.map(
+              (action) => workspaceActionMap[action] || action,
+            ),
+          )
+          .filter(
+            (action) =>
+              action !== 'READ' &&
+              action !== 'CREATE' &&
+              action !== 'UPDATE' &&
+              action !== 'DELETE' &&
+              action !== 'MANAGE',
+          ); // Filter out basic CRUD permissions
+
+        currentUserPermissions = [
+          ...new Set([...currentUserPermissions, ...workspaceActions]),
+        ];
+      } catch (error) {
+        console.error('Failed to fetch workspace permissions:', error);
+        // Continue with existing permissions if workspace permissions fetch fails
       }
     }
 
@@ -594,7 +696,7 @@ export class WorkspaceService {
     );
 
     // Tạo default permissions cho user
-    await this.permissionService.createDefaultPermissions(
+    await this.workspacePermissionService.createDefaultPermissions(
       workspace._id.toString(),
       userId,
       'user',
@@ -1504,7 +1606,173 @@ export class WorkspaceService {
       }
     }
 
-    // Get current member permissions
+    // Separate workspace permissions from member permissions
+    const workspacePermissionMap: {
+      [key: string]: { module: string; action: string };
+    } = {
+      room_admin: { module: 'live_room', action: 'ROOM_ADMIN' },
+      room_user: { module: 'live_room', action: 'ROOM_USER' },
+    };
+
+    const workspacePermissions: string[] = [];
+    const memberPermissions: Permission[] = [];
+
+    // Classify permissions
+    permissions.forEach((permission) => {
+      if (permission === 'room_permission') {
+        // Special handling for room_permission toggle
+        workspacePermissions.push(permission);
+      } else if (workspacePermissionMap[permission]) {
+        workspacePermissions.push(permission);
+      } else {
+        memberPermissions.push(permission);
+      }
+    });
+
+    // Handle workspace permissions
+    for (const wsPermission of workspacePermissions) {
+      if (wsPermission === 'room_permission') {
+        // Special handling for room permission toggle
+        const currentPermission =
+          await this.workspacePermissionService.getUserModulePermissions(
+            workspaceId,
+            targetUserId,
+            'live_room',
+          );
+
+        const currentActions = currentPermission?.actions || ['READ'];
+        const hasRoomAdmin = currentActions.includes('ROOM_ADMIN');
+
+        if (action === 'grant' || action === 'set') {
+          // Toggle: if currently admin, set to user; if currently user/none, set to admin
+          if (hasRoomAdmin) {
+            // Currently admin, switch to user
+            await this.workspacePermissionService.updatePermissions(
+              workspaceId,
+              targetUserId,
+              'live_room',
+              ['ROOM_USER'],
+            );
+          } else {
+            // Currently user or no permission, switch to admin
+            await this.workspacePermissionService.updatePermissions(
+              workspaceId,
+              targetUserId,
+              'live_room',
+              ['ROOM_ADMIN'],
+            );
+          }
+        } else if (action === 'revoke') {
+          // Revoke means set to basic user permission
+          await this.workspacePermissionService.updatePermissions(
+            workspaceId,
+            targetUserId,
+            'live_room',
+            ['ROOM_USER'],
+          );
+        }
+      } else {
+        // Regular workspace permission handling
+        const mapping = workspacePermissionMap[wsPermission];
+
+        if (action === 'grant') {
+          // Get current permissions and add new one
+          const currentPermission =
+            await this.workspacePermissionService.getUserModulePermissions(
+              workspaceId,
+              targetUserId,
+              mapping.module,
+            );
+
+          const currentActions = currentPermission?.actions || ['READ']; // Default to READ if no permission exists
+          const newActions = [...new Set([...currentActions, mapping.action])];
+
+          await this.workspacePermissionService.updatePermissions(
+            workspaceId,
+            targetUserId,
+            mapping.module,
+            newActions,
+          );
+        } else if (action === 'revoke') {
+          // Get current permissions and remove specified one
+          const currentPermission =
+            await this.workspacePermissionService.getUserModulePermissions(
+              workspaceId,
+              targetUserId,
+              mapping.module,
+            );
+
+          if (currentPermission) {
+            const newActions = currentPermission.actions.filter(
+              (action) => action !== mapping.action,
+            );
+            // Ensure at least READ permission remains, or delete if only READ and we're removing something else
+            const finalActions =
+              newActions.length === 0 ? ['READ'] : newActions;
+
+            await this.workspacePermissionService.updatePermissions(
+              workspaceId,
+              targetUserId,
+              mapping.module,
+              finalActions,
+            );
+          }
+        } else if (action === 'set') {
+          // Set specific permission (replace current actions with new one)
+          await this.workspacePermissionService.updatePermissions(
+            workspaceId,
+            targetUserId,
+            mapping.module,
+            [mapping.action],
+          );
+        }
+      }
+    }
+
+    // Handle member permissions (existing logic)
+    if (memberPermissions.length > 0) {
+      // Get current member permissions
+      const member = await this.workspaceRepository.getMember(
+        workspaceId,
+        targetUserId,
+      );
+      if (!member) {
+        throw new AppException(ErrorCode.NOT_FOUND);
+      }
+
+      let newPermissions: string[];
+
+      switch (action) {
+        case 'grant':
+          // Add new permissions to existing ones
+          newPermissions = [
+            ...new Set([...member.permissions, ...memberPermissions]),
+          ];
+          break;
+        case 'revoke':
+          // Remove specified permissions
+          newPermissions = member.permissions.filter(
+            (p) => !memberPermissions.includes(p as Permission),
+          );
+          break;
+        case 'set':
+        default:
+          // For 'set' action with mixed permissions, only set member permissions
+          // Workspace permissions are handled separately above
+          newPermissions = memberPermissions;
+          break;
+      }
+
+      const updatedMember =
+        await this.workspaceRepository.updateMemberPermissions(
+          workspaceId,
+          targetUserId,
+          newPermissions,
+        );
+      return updatedMember;
+    }
+
+    // If only workspace permissions were managed, return current member
     const member = await this.workspaceRepository.getMember(
       workspaceId,
       targetUserId,
@@ -1512,34 +1780,7 @@ export class WorkspaceService {
     if (!member) {
       throw new AppException(ErrorCode.NOT_FOUND);
     }
-
-    let newPermissions: string[];
-
-    switch (action) {
-      case 'grant':
-        // Add new permissions to existing ones
-        newPermissions = [...new Set([...member.permissions, ...permissions])];
-        break;
-      case 'revoke':
-        // Remove specified permissions
-        newPermissions = member.permissions.filter(
-          (p) => !permissions.includes(p as Permission),
-        );
-        break;
-      case 'set':
-      default:
-        // Replace all permissions
-        newPermissions = permissions;
-        break;
-    }
-
-    const updatedMember =
-      await this.workspaceRepository.updateMemberPermissions(
-        workspaceId,
-        targetUserId,
-        newPermissions,
-      );
-    return updatedMember;
+    return member;
   }
 
   /**

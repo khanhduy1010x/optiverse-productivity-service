@@ -13,6 +13,9 @@ export enum Permission {
   MANAGE_MEMBERS = 'MANAGE_MEMBERS',
   ACCEPT_MEMBER = 'ACCEPT_MEMBER',
   MANAGE_PERMISSIONS = 'MANAGE_PERMISSIONS', // ✅ quyền meta: được phép cấp quyền cho người khác
+  room_admin = 'room_admin', // ✅ quyền quản lý room (workspace permission)
+  room_user = 'room_user', // ✅ quyền sử dụng room (workspace permission)
+  room_permission = 'room_permission', // ✅ toggle permission for room (frontend only)
 }
 
 @Injectable()
