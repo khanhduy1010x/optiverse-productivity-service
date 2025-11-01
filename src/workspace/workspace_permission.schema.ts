@@ -15,15 +15,9 @@ export class WorkspacePermission {
   user_id: Types.ObjectId;
 
   @Prop({
-    required: true,
-    enum: ['task', 'flashcard', 'note', 'schedule', 'chat', 'blog'],
-  })
-  module: string;
-
-  @Prop({
     type: [String],
-    enum: ['CREATE', 'READ', 'UPDATE', 'DELETE', 'MANAGE'],
-    default: ['READ'],
+    enum: ['ROOM_ADMIN', 'ROOM_USER'],
+    default: ['ROOM_USER'],
   })
   actions: string[];
 

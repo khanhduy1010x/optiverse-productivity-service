@@ -24,15 +24,18 @@ export class UserHttpClient {
     const response = await this.client.get(`auth/get-info-by-email/${email}`);
     return response.data;
   }
-  
+
   async getUsersByIds(userIds: string[]): Promise<UserResponse[]> {
-    const response = await this.client.post<ApiResponseWrapper<UserResponse[]>>('auth/get-users-by-ids', { userIds });
-    
+    const response = await this.client.post<ApiResponseWrapper<UserResponse[]>>(
+      'auth/get-users-by-ids',
+      { userIds },
+    );
+
     // Check if response and data properties exist
     if (response?.data?.data) {
       return response.data.data;
     }
-    
+
     // Return empty array if no data
     return [];
   }

@@ -7,16 +7,28 @@ import { NoteRepository } from './note.repository';
 import { NoteGateway } from './note.gateway';
 import { ShareRepository } from '../shares/share.repository';
 import { Share, ShareSchema } from '../shares/share.schema';
+import { NoteFolderRepository } from '../note-folders/note-folder.repository';
+import {
+  NoteFolder,
+  NoteFolderSchema,
+} from '../note-folders/note-folder.schema';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: Note.name, schema: NoteSchema },
       { name: Share.name, schema: ShareSchema },
+      { name: NoteFolder.name, schema: NoteFolderSchema },
     ]),
   ],
   controllers: [NoteController],
-  providers: [NoteService, NoteRepository, NoteGateway, ShareRepository],
+  providers: [
+    NoteService,
+    NoteRepository,
+    NoteGateway,
+    ShareRepository,
+    NoteFolderRepository,
+  ],
   exports: [NoteService, NoteRepository, NoteGateway],
 })
 export class NoteModule {}

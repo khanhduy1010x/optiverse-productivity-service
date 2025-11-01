@@ -222,7 +222,7 @@ export class NoteGateway
     try {
       const note = await this.noteService.getNotebyId(data.noteId);
 
-      const ownerRoom = `user:${note.user_id.toString()}`;
+      const ownerRoom = `user:${note.user_id?.toString()}`;
 
       this.server.to(ownerRoom).emit('folder_structure_changed', {
         eventType: 'my_note',
@@ -269,7 +269,7 @@ export class NoteGateway
     try {
       const note = await this.noteService.getNotebyId(data.noteId);
 
-      const ownerRoom = `user:${note.user_id.toString()}`;
+      const ownerRoom = `user:${note.user_id?.toString()}`;
       this.server.to(ownerRoom).emit('folder_structure_changed', {
         eventType: 'my_note',
         isSharedView: false,

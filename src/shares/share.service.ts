@@ -862,7 +862,7 @@ export class ShareService {
       if (!note) {
         throw new AppException(ErrorCode.RESOURCE_NOT_FOUND);
       }
-      if (note.user_id.toString() !== ownerId) {
+      if (note.user_id?.toString() !== ownerId) {
         throw new AppException(ErrorCode.PERMISSION_DENIED);
       }
     } else if (resourceType === 'folder') {
@@ -870,7 +870,7 @@ export class ShareService {
       if (!folder) {
         throw new AppException(ErrorCode.RESOURCE_NOT_FOUND);
       }
-      if (folder.user_id.toString() !== ownerId) {
+      if (folder.user_id?.toString() !== ownerId) {
         throw new AppException(ErrorCode.PERMISSION_DENIED);
       }
     } else {

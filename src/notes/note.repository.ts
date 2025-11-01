@@ -6,6 +6,7 @@ import { AppException } from 'src/common/exceptions/app.exception';
 import { ErrorCode } from 'src/common/exceptions/error-code.enum';
 import { CreateNoteRequest } from './dto/request/CreateNoteRequest.dto';
 import { UpdateNoteRequest } from './dto/request/UpdateNoteRequest.dto';
+import { CreateNoteRoomRequest } from './dto/request/CreateNoteRoomRequest.dto';
 
 @Injectable()
 export class NoteRepository {
@@ -28,6 +29,12 @@ export class NoteRepository {
       .exec();
   }
 
+  async getNotesByRoomId(roomId: string): Promise<Note[]> {
+    return await this.noteModel
+      .find({ live_room_id: new Types.ObjectId(roomId) })
+      .exec();
+  }
+
   async createNote(
     createNoteDto: CreateNoteRequest,
     userId: string,
@@ -38,6 +45,22 @@ export class NoteRepository {
       folder_id: createNoteDto.folder_id
         ? new Types.ObjectId(createNoteDto.folder_id)
         : null,
+    });
+    return await newNote.save();
+  }
+
+  async createNoteInRoom(
+    createNoteDto: CreateNoteRoomRequest,
+    userId: string,
+    folderId?: string,
+  ): Promise<Note> {
+    const newNote = new this.noteModel({
+      title: createNoteDto.title,
+      content: '',
+      user_id: new Types.ObjectId(userId),
+      folder_id: folderId ? new Types.ObjectId(folderId) : null,
+      live_room_id: new Types.ObjectId(createNoteDto.live_room_id),
+      create_by: new Types.ObjectId(userId),
     });
     return await newNote.save();
   }
