@@ -14,10 +14,6 @@ export class PurchaseResponseDto {
   purchased_deck_id: string;
 
   @IsOptional()
-  @IsString()
-  source_marketplace_item_id?: string;
-
-  @IsOptional()
   @IsObject()
   details?: Record<string, any>;
 }

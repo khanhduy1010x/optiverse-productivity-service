@@ -32,8 +32,10 @@ export class MarketplaceItemController {
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,
     @Query('type') type?: MarketplaceItemType,
+    @Request() req?: any,
   ): Promise<ApiResponseWrapper<{ items: MarketplaceItemResponseDto[]; total: number }>> {
-    const result = await this.marketplaceItemService.findAll(page, limit, type);
+    const userId = req?.userInfo?.userId;
+    const result = await this.marketplaceItemService.findAll(page, limit, type, userId);
     return new ApiResponseWrapper(result);
   }
 
@@ -48,7 +50,7 @@ export class MarketplaceItemController {
       throw new AppException(ErrorCode.UNAUTHENTICATED);
     }
     
-    const result = await this.marketplaceItemService.findByCreatorId(userId, page, limit);
+    const result = await this.marketplaceItemService.findByCreatorId(userId, page, limit, userId);
     return new ApiResponseWrapper(result);
   }
 
@@ -57,14 +59,28 @@ export class MarketplaceItemController {
     @Param('creatorId') creatorId: string,
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,
+    @Request() req?: any,
   ): Promise<ApiResponseWrapper<{ items: MarketplaceItemResponseDto[]; total: number }>> {
-    const result = await this.marketplaceItemService.findByCreatorId(creatorId, page, limit);
+    const userId = req?.userInfo?.userId;
+    const result = await this.marketplaceItemService.findByCreatorId(creatorId, page, limit, userId);
     return new ApiResponseWrapper(result);
   }
 
+  @Get('preview/:id')
+  async getPreviewFlashcards(
+    @Param('id') id: string,
+  ): Promise<ApiResponseWrapper<any>> {
+    const previewFlashcards = await this.marketplaceItemService.getPreviewFlashcards(id);
+    return new ApiResponseWrapper(previewFlashcards);
+  }
+
   @Get(':id')
-  async findById(@Param('id') id: string): Promise<ApiResponseWrapper<MarketplaceItemResponseDto>> {
-    const item = await this.marketplaceItemService.findById(id);
+  async findById(
+    @Param('id') id: string,
+    @Request() req?: any,
+  ): Promise<ApiResponseWrapper<MarketplaceItemResponseDto>> {
+    const userId = req?.userInfo?.userId;
+    const item = await this.marketplaceItemService.findById(id, userId);
     return new ApiResponseWrapper(item);
   }
 

@@ -15,6 +15,17 @@ export class CreatorInfoDto {
   avatar_url?: string;
 }
 
+export class RatingStatsDto {
+  @ApiProperty({ description: 'Tổng số đánh giá' })
+  totalRatings: number;
+
+  @ApiProperty({ description: 'Đánh giá trung bình' })
+  averageRating: number;
+
+  @ApiProperty({ description: 'Phân bố đánh giá theo số sao' })
+  ratingDistribution: Record<number, number>;
+}
+
 export class MarketplaceItemResponseDto {
   @ApiProperty({ description: 'ID của item' })
   _id: string;
@@ -46,4 +57,12 @@ export class MarketplaceItemResponseDto {
   @ApiProperty({ description: 'Number of times this item has been purchased', default: 0 })
   purchase_count?: number;
 
+  @ApiProperty({ description: 'Danh sách ID của các đánh giá', type: [String], required: false })
+  rate_id?: string[];
+
+  @ApiProperty({ description: 'Thống kê đánh giá', type: RatingStatsDto, required: false })
+  rating_stats?: RatingStatsDto;
+
+  @ApiProperty({ description: 'Đã mua item này hay chưa', default: false })
+  is_purchased?: boolean;
 }

@@ -11,6 +11,7 @@ import { UserInventoryModule } from '../user-inventory/user-inventory.module';
 import { CloudinaryModule } from '../common/cloudinary/cloudinary.module';
 import { PurchaseHistoryModule } from '../purchase-history/purchase-history.module';
 import { AxiosClientModule } from '../http-axios/axios-client.module';
+import { RatingModule } from './rating/rating.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { AxiosClientModule } from '../http-axios/axios-client.module';
     CloudinaryModule,
     PurchaseHistoryModule,
     AxiosClientModule,
+    RatingModule,
   ],
   controllers: [MarketplaceItemController],
   providers: [MarketplaceItemRepository, MarketplaceItemService],
