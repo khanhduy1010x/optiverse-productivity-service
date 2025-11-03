@@ -64,6 +64,8 @@ export enum ErrorCode {
   ROOM_ACCESS_DENIED,
   ROOM_JOIN_REQUEST_PENDING,
   ROOM_USER_NOT_AUTHENTICATED,
+  DUPLICATE_RATING,
+  RATING_NOT_FOUND,
 }
 export const ErrorDetails = {
   [ErrorCode.INVALID_CODE]: {
@@ -364,5 +366,15 @@ export const ErrorDetails = {
     code: 1206,
     message: 'User not authenticated',
     httpStatus: HttpStatus.UNAUTHORIZED,
+  },
+  [ErrorCode.DUPLICATE_RATING]: {
+    code: 1211,
+    message: 'You have already rated this item. Please update your rating instead.',
+    httpStatus: HttpStatus.BAD_REQUEST,
+  },
+  [ErrorCode.RATING_NOT_FOUND]: {
+    code: 1212,
+    message: 'Rating not found',
+    httpStatus: HttpStatus.NOT_FOUND,
   },
 };

@@ -28,7 +28,7 @@ export class MarketplaceItemService {
     private readonly userHttpClient: UserHttpClient,
   ) {}
   
-  private async toResponseDto(item: MarketplaceItem): Promise<MarketplaceItemResponseDto> {
+  private async toResponseDto(item: MarketplaceItem, userId?: string): Promise<MarketplaceItemResponseDto> {
     let creatorInfo;
     try {
       // Lấy thông tin người tạo từ user service
@@ -52,6 +52,20 @@ export class MarketplaceItemService {
       // Không throw error, tiếp tục với giá trị mặc định
     }
 
+    // Check if user already purchased this item
+    let isPurchased = false;
+    if (userId) {
+      try {
+        isPurchased = await this.purchaseHistoryService.checkIfAlreadyPurchased(
+          userId,
+          item._id.toString(),
+        );
+      } catch (error) {
+        console.error('Failed to check purchase status:', error);
+        // Không throw error, tiếp tục với giá trị mặc định
+      }
+    }
+
     return {
       _id: item._id.toString(),
       creator_id: item.creator_id.toString(),
@@ -63,6 +77,7 @@ export class MarketplaceItemService {
       type: item.type,
       type_id: item.type_id ? item.type_id.toString() : undefined,
       purchase_count: purchaseCount,
+      is_purchased: isPurchased,
     };
   }
 
@@ -154,14 +169,57 @@ export class MarketplaceItemService {
     };
   }
 
+  /**
+   * Get preview flashcards - Lấy 20% flashcard để preview
+   */
+  async getPreviewFlashcards(
+    marketplaceItemId: string,
+  ): Promise<{ flashcards: any[]; totalFlashcards: number; previewCount: number }> {
+    try {
+      const item = await this.repo.findById(marketplaceItemId);
+      if (!item) {
+        throw new AppException(ErrorCode.NOT_FOUND);
+      }
+
+      // Kiểm tra nếu là flashcard item
+      if (item.type !== MarketplaceItemType.FLASHCARD || !item.copied_data) {
+        return {
+          flashcards: [],
+          totalFlashcards: 0,
+          previewCount: 0,
+        };
+      }
+
+      const allFlashcards = item.copied_data.flashcards || [];
+      const totalFlashcards = allFlashcards.length;
+      
+      // Lấy 20% flashcard, tối thiểu 1 cái
+      const previewCount = Math.max(1, Math.ceil(totalFlashcards * 0.2));
+      const previewFlashcards = allFlashcards.slice(0, previewCount);
+
+      return {
+        flashcards: previewFlashcards,
+        totalFlashcards,
+        previewCount,
+      };
+    } catch (error) {
+      if (error instanceof AppException) {
+        throw error;
+      }
+      console.error('Error in getPreviewFlashcards:', error);
+      throw new AppException(ErrorCode.SERVER_ERROR);
+    }
+  }
+
   async findAll(
     page: number = 1,
     limit: number = 10,
     type?: MarketplaceItemType,
+    userId?: string,
   ): Promise<{ items: MarketplaceItemResponseDto[]; total: number }> {
     try {
       const result = await this.repo.findAll(page, limit, type);
-      const items = await Promise.all(result.items.map(item => this.toResponseDto(item)));
+      const items = await Promise.all(result.items.map(item => this.toResponseDto(item, userId)));
       return {
         items,
         total: result.total
@@ -172,13 +230,13 @@ export class MarketplaceItemService {
     }
   }
 
-  async findById(id: string): Promise<MarketplaceItemResponseDto> {
+  async findById(id: string, userId?: string): Promise<MarketplaceItemResponseDto> {
     try {
       const item = await this.repo.findById(id);
       if (!item) {
         throw new AppException(ErrorCode.NOT_FOUND);
       }
-      return this.toResponseDto(item);
+      return this.toResponseDto(item, userId);
     } catch (error) {
       if (error instanceof AppException) {
         throw error;
@@ -293,9 +351,10 @@ export class MarketplaceItemService {
     creatorId: string,
     page: number = 1,
     limit: number = 10,
+    userId?: string,
   ): Promise<{ items: MarketplaceItemResponseDto[]; total: number }> {
     const result = await this.repo.findByCreatorId(creatorId, page, limit);
-    const items = await Promise.all(result.items.map(item => this.toResponseDto(item)));
+    const items = await Promise.all(result.items.map(item => this.toResponseDto(item, userId)));
     return {
       items,
       total: result.total

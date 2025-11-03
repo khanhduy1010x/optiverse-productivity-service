@@ -4,6 +4,7 @@ import { PurchaseHistory, PurchaseHistorySchema } from './purchase-history.schem
 import { PurchaseHistoryService } from './purchase-history.service';
 import { PurchaseHistoryController } from './purchase-history.controller';
 import { PurchaseHistoryRepository } from './purchase-history.repository';
+import { UserHttpClient } from '../http-axios/user-http.client';
 
 @Module({
   imports: [
@@ -11,7 +12,7 @@ import { PurchaseHistoryRepository } from './purchase-history.repository';
       { name: PurchaseHistory.name, schema: PurchaseHistorySchema },
     ]),
   ],
-  providers: [PurchaseHistoryService, PurchaseHistoryRepository],
+  providers: [PurchaseHistoryService, PurchaseHistoryRepository, UserHttpClient],
   controllers: [PurchaseHistoryController],
   exports: [PurchaseHistoryService],
 })

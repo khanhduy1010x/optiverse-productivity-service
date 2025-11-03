@@ -11,7 +11,7 @@ export class MarketplaceItem {
   _id: mongoose.Types.ObjectId;
 
   // account người tạo
-  @Prop({ type: Types.ObjectId, required: true, ref: 'User' })
+  @Prop({ type: Types.ObjectId, required: true })
   creator_id: Types.ObjectId;
 
   // tiêu đề sản phẩm
@@ -49,6 +49,10 @@ export class MarketplaceItem {
   // Bản sao dữ liệu của item gốc (để item marketplace không phụ thuộc vào item gốc)
   @Prop({ type: mongoose.Schema.Types.Mixed })
   copied_data?: Record<string, any>;
+
+  // Danh sách ID của các đánh giá
+  @Prop({ type: [Types.ObjectId], default: [], ref: 'Rating' })
+  rate_id: Types.ObjectId[];
 }
 
 export const MarketplaceItemSchema = SchemaFactory.createForClass(MarketplaceItem);

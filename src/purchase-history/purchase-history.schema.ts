@@ -8,11 +8,11 @@ export type PurchaseHistoryDocument = PurchaseHistory & Document;
 export class PurchaseHistory {
   _id: mongoose.Types.ObjectId;
 
-  @Prop({ required: true, type: Types.ObjectId, ref: 'User' })
+  @Prop({ required: true, type: Types.ObjectId })
   buyer_id: Types.ObjectId;
 
-  @Prop({ required: true, type: Types.ObjectId, ref: 'User' })
-  seller_id: Types.ObjectId;
+  @Prop({ required: true, type: Types.ObjectId})
+  seller_id: Types.ObjectId
 
   @Prop({ required: true, type: Types.ObjectId, ref: 'MarketplaceItem' })
   marketplace_item_id: Types.ObjectId;
