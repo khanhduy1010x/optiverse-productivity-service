@@ -107,12 +107,10 @@ export class LiveRoomService {
       return; // Owner can always create rooms
     }
 
-    const permission =
-      await this.workspacePermissionService.getUserModulePermissions(
-        workspaceId,
-        userId,
-        'live_room',
-      );
+    const permission = await this.workspacePermissionService.getUserPermissions(
+      workspaceId,
+      userId,
+    );
 
     if (!permission) {
       throw new ForbiddenException(
@@ -230,10 +228,9 @@ export class LiveRoomService {
       }
 
       const permission =
-        await this.workspacePermissionService.getUserModulePermissions(
+        await this.workspacePermissionService.getUserPermissions(
           workspaceId,
           userId,
-          'live_room',
         );
 
       if (!permission) {

@@ -24,48 +24,20 @@ export class WorkspacePermissionService {
     userId: string,
     role: 'admin' | 'user' = 'user',
   ): Promise<void> {
-    const modules = [
-      'task',
-      'flashcard',
-      'note',
-      'schedule',
-      'chat',
-      'blog',
-      'live_room',
-    ];
-
     try {
-      for (const module of modules) {
-        const existing = await this.workspacePermissionModel.findOne({
+      const existing = await this.workspacePermissionModel.findOne({
+        workspace_id: new Types.ObjectId(workspaceId),
+        user_id: new Types.ObjectId(userId),
+      });
+
+      if (!existing) {
+        const actions = role === 'admin' ? ['ROOM_ADMIN'] : ['ROOM_USER'];
+
+        await this.workspacePermissionModel.create({
           workspace_id: new Types.ObjectId(workspaceId),
           user_id: new Types.ObjectId(userId),
-          module,
+          actions,
         });
-
-        if (!existing) {
-          let actions: string[] = [];
-
-          if (role === 'admin') {
-            if (module === 'live_room') {
-              actions = ['ROOM_ADMIN'];
-            } else {
-              actions = ['CREATE', 'READ', 'UPDATE', 'DELETE'];
-            }
-          } else {
-            if (module === 'live_room') {
-              actions = ['ROOM_USER'];
-            } else {
-              actions = ['READ'];
-            }
-          }
-
-          await this.workspacePermissionModel.create({
-            workspace_id: new Types.ObjectId(workspaceId),
-            user_id: new Types.ObjectId(userId),
-            module,
-            actions,
-          });
-        }
       }
     } catch (error) {
       console.error('Failed to create default permissions:', error);
@@ -73,17 +45,15 @@ export class WorkspacePermissionService {
   }
 
   /**
-   * Lấy quyền của user với module cụ thể trong workspace
+   * Lấy quyền của user trong workspace
    */
-  async getUserModulePermissions(
+  async getUserPermissions(
     workspaceId: string,
     userId: string,
-    module: string,
   ): Promise<WorkspacePermission | null> {
     return this.workspacePermissionModel.findOne({
       workspace_id: new Types.ObjectId(workspaceId),
       user_id: new Types.ObjectId(userId),
-      module,
     });
   }
 
@@ -93,14 +63,9 @@ export class WorkspacePermissionService {
   async hasPermission(
     workspaceId: string,
     userId: string,
-    module: string,
     action: string,
   ): Promise<boolean> {
-    const permission = await this.getUserModulePermissions(
-      workspaceId,
-      userId,
-      module,
-    );
+    const permission = await this.getUserPermissions(workspaceId, userId);
     return permission ? permission.actions.includes(action) : false;
   }
 
@@ -110,14 +75,12 @@ export class WorkspacePermissionService {
   async updatePermissions(
     workspaceId: string,
     userId: string,
-    module: string,
     actions: string[],
   ): Promise<WorkspacePermission | null> {
     return this.workspacePermissionModel.findOneAndUpdate(
       {
         workspace_id: new Types.ObjectId(workspaceId),
         user_id: new Types.ObjectId(userId),
-        module,
       },
       { actions },
       { new: true },
@@ -127,21 +90,11 @@ export class WorkspacePermissionService {
   /**
    * Xóa quyền của user
    */
-  async deletePermissions(
-    workspaceId: string,
-    userId: string,
-    module?: string,
-  ): Promise<void> {
-    const query: any = {
+  async deletePermissions(workspaceId: string, userId: string): Promise<void> {
+    await this.workspacePermissionModel.deleteMany({
       workspace_id: new Types.ObjectId(workspaceId),
       user_id: new Types.ObjectId(userId),
-    };
-
-    if (module) {
-      query.module = module;
-    }
-
-    await this.workspacePermissionModel.deleteMany(query);
+    });
   }
 
   /**
@@ -150,11 +103,8 @@ export class WorkspacePermissionService {
   async getUserWorkspacePermissions(
     workspaceId: string,
     userId: string,
-  ): Promise<WorkspacePermission[]> {
-    return this.workspacePermissionModel.find({
-      workspace_id: new Types.ObjectId(workspaceId),
-      user_id: new Types.ObjectId(userId),
-    });
+  ): Promise<WorkspacePermission | null> {
+    return this.getUserPermissions(workspaceId, userId);
   }
 
   async isWorkspaceOwner(
@@ -179,11 +129,7 @@ export class WorkspacePermissionService {
       return true;
     }
 
-    const permission = await this.getUserModulePermissions(
-      workspaceId,
-      userId,
-      'live_room',
-    );
+    const permission = await this.getUserPermissions(workspaceId, userId);
 
     if (!permission) {
       return false;

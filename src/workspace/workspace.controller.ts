@@ -49,18 +49,67 @@ export class WorkspaceController {
     const user = req.userInfo as UserDto;
     console.log('Creating workspace for user:', createWorkspaceDto.memberIds);
     console.log('Creating workspace for user:', user.userId);
+    console.log('User membership info:', req.userInfo?.membership);
     const workspace = await this.workspaceService.createWorkspace(
       user.userId,
       createWorkspaceDto,
+      user,
     );
     return new ApiResponse<Workspace>(workspace);
   }
 
+  @Get('creation-limits')
+  async getWorkspaceLimits(@Request() req): Promise<
+    ApiResponse<{
+      current: number;
+      max: number;
+      canCreateMore: boolean;
+      membershipLevel: string;
+      packageName?: string;
+    }>
+  > {
+    const user = req.userInfo as UserDto;
+    const limits = await this.workspaceService.getWorkspaceLimits(user);
+    return new ApiResponse(limits);
+  }
+
   @Get('my-workspaces')
-  async getMyWorkspaces(@Request() req): Promise<ApiResponse<any[]>> {
+  async getMyWorkspaces(@Request() req): Promise<
+    ApiResponse<{
+      owner_workspace: Array<{
+        role: string;
+        status: string;
+        joined_at: Date;
+        locked: boolean;
+        workspace: any;
+      }>;
+      member_workspace: Array<{
+        role: string;
+        status: string;
+        joined_at: Date;
+        locked: boolean;
+        workspace: any;
+      }>;
+    }>
+  > {
     const user = req.userInfo as UserDto;
     const workspaces = await this.workspaceService.getMyWorkspaces(user.userId);
-    return new ApiResponse<any[]>(workspaces);
+    return new ApiResponse<{
+      owner_workspace: Array<{
+        role: string;
+        status: string;
+        joined_at: Date;
+        locked: boolean;
+        workspace: any;
+      }>;
+      member_workspace: Array<{
+        role: string;
+        status: string;
+        joined_at: Date;
+        locked: boolean;
+        workspace: any;
+      }>;
+    }>(workspaces);
   }
 
   @Get('my-requests')
@@ -334,6 +383,19 @@ export class WorkspaceController {
       body.userId,
     );
     return new ApiResponse<void>();
+  }
+
+  @Post('public/lock-workspaces/:userId')
+  async lockUserWorkspacesExceptFirst(@Param('userId') userId: string): Promise<
+    ApiResponse<{
+      total: number;
+      locked: number;
+      preserved: { workspaceId: string; workspaceName: string };
+    }>
+  > {
+    const result =
+      await this.workspaceService.lockUserWorkspacesExceptFirst(userId);
+    return new ApiResponse(result);
   }
 
   @Post(':id/invite-multiple-users')

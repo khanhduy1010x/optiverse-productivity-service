@@ -13,7 +13,7 @@ export class Workspace {
 
   @Prop({ trim: true })
   description?: string;
-  
+
   @Prop()
   password?: string;
 
@@ -25,6 +25,9 @@ export class Workspace {
 
   @Prop({ default: 1 })
   member_count: number;
+
+  @Prop({ type: Boolean, default: false })
+  locked: boolean;
 
   createdAt?: Date;
   updatedAt?: Date;
