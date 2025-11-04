@@ -21,6 +21,7 @@ export class AuthMiddleware implements NestMiddleware {
         user.email = parsedUser.email;
         user.fullName = parsedUser.full_name;
         user.avatar_url = parsedUser.avatar_url || undefined;
+        user.membership = parsedUser.membership;
       } catch (error) {
         console.error('Error parsing X-User-Info:', error);
       }

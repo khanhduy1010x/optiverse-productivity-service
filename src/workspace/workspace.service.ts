@@ -24,15 +24,20 @@ import { AppException } from 'src/common/exceptions/app.exception';
 import { ErrorCode } from 'src/common/exceptions/error-code.enum';
 import { UserHttpClient } from 'src/http-axios/user-http.client';
 import { WorkspaceWebSocketGateway } from './workspace-websocket.gateway';
+import { UserDto } from 'src/user-dto/user.dto';
 
-// Define interface for user data from HTTP client
 interface UserResponse {
   user_id: string;
   email: string;
   full_name?: string;
   avatar_url?: string;
 }
-
+const workspaceLimits = {
+  Free: 1,
+  '0': 3, // BASIC
+  '1': 8, // PROFESSIONAL
+  '2': 20, // BUSINESS
+};
 @Injectable()
 export class WorkspaceService {
   constructor(
@@ -43,11 +48,13 @@ export class WorkspaceService {
     private readonly workspaceGateway: WorkspaceWebSocketGateway,
   ) {}
 
-  // ========== Workspace Methods ==========
   async createWorkspace(
     userId: string,
     createWorkspaceDto: CreateWorkspaceDto,
+    userInfo: UserDto,
   ): Promise<Workspace> {
+    await this.checkWorkspaceLimits(userInfo);
+
     const workspace = await this.workspaceRepository.createWorkspace(
       userId,
       createWorkspaceDto.name,
@@ -55,14 +62,12 @@ export class WorkspaceService {
       createWorkspaceDto.password,
     );
 
-    // Add owner as admin member
     await this.workspaceRepository.addMember(
       workspace._id.toString(),
       userId,
       'admin',
     );
 
-    // Tạo default permissions cho owner
     await this.workspacePermissionService.createDefaultPermissions(
       workspace._id.toString(),
       userId,
@@ -92,13 +97,75 @@ export class WorkspaceService {
             );
           }
         } catch (e) {
-          // Ignore errors for initial invitations to be resilient
           console.error('Failed to create initial invitations:', e);
         }
       }
     }
 
     return workspace;
+  }
+
+  /**
+   * Check if user can create more workspaces based on their membership package
+   */
+  private async checkWorkspaceLimits(user: UserDto): Promise<void> {
+    const currentWorkspaceCount =
+      await this.workspaceRepository.getUserWorkspaceCount(user.userId);
+
+    console.log('ALO ALO ', currentWorkspaceCount);
+    let maxWorkspaces: number;
+
+    if (!user.membership || !user.membership.hasActiveMembership) {
+      maxWorkspaces = workspaceLimits['Free'];
+    } else {
+      maxWorkspaces =
+        workspaceLimits[String(user.membership.level)] ||
+        workspaceLimits['Free'];
+    }
+
+    console.log(
+      `User ${user.userId} has ${currentWorkspaceCount} workspaces, max allowed: ${maxWorkspaces}, membership level: ${user?.membership?.level}, package: ${user.membership?.packageName}`,
+    );
+
+    if (currentWorkspaceCount >= maxWorkspaces) {
+      throw new AppException(ErrorCode.UNAUTHORIZED);
+    }
+  }
+
+  /**
+   * Get workspace creation limits for user based on membership
+   */
+  async getWorkspaceLimits(user: UserDto): Promise<{
+    current: number;
+    max: number;
+    canCreateMore: boolean;
+    membershipLevel: string;
+    packageName?: string;
+  }> {
+    const currentWorkspaceCount =
+      await this.workspaceRepository.getUserWorkspaceCount(user.userId);
+
+    let maxWorkspaces: number;
+    let membershipLevel: string;
+    console.log('User membership info:', user);
+    if (!user.membership || !user.membership.hasActiveMembership) {
+      maxWorkspaces = workspaceLimits['Free'];
+      membershipLevel = 'Free';
+    } else {
+      maxWorkspaces =
+        workspaceLimits[String(user.membership.level)] ||
+        workspaceLimits['Free'];
+      membershipLevel =
+        user.membership.packageName || `Level ${user.membership.level}`;
+    }
+
+    return {
+      current: currentWorkspaceCount,
+      max: maxWorkspaces,
+      canCreateMore: currentWorkspaceCount < maxWorkspaces,
+      membershipLevel,
+      packageName: user.membership?.packageName,
+    };
   }
 
   async getWorkspaceById(workspaceId: string): Promise<Workspace> {
@@ -109,42 +176,35 @@ export class WorkspaceService {
     workspaceId: string,
     requestUserId?: string,
   ): Promise<WorkspaceDetailDto> {
-    // Get workspace info
     const workspace =
       await this.workspaceRepository.getWorkspaceById(workspaceId);
     console.log('Workspace info:', workspace);
-    // Get all members and join requests
+
     const [members, joinRequests] = await Promise.all([
       this.workspaceRepository.getMembersByWorkspace(workspaceId),
       this.workspaceRepository.getJoinRequestsByWorkspace(workspaceId),
     ]);
 
-    // Collect all user IDs
     const memberUserIds = members.map((m) => m.user_id.toString());
     const requestUserIds = joinRequests.map((r) => r.target_user_id.toString());
     const allUserIds = [...memberUserIds, ...requestUserIds];
 
-    // Get user details from core service
     let users: any[] = [];
     if (allUserIds.length > 0) {
       try {
         users = await this.userHttpClient.getUsersByIds(allUserIds);
       } catch (error) {
         console.error('Failed to fetch user details:', error);
-        // Continue with empty users array if service fails
       }
     }
 
-    // Create user lookup map
     const userMap = new Map<string, any>();
     users.forEach((user) => {
       userMap.set(user.user_id, user);
     });
 
-    // Get workspace permissions for all members
     const memberWorkspacePermissions = new Map<string, string[]>();
 
-    // Fetch workspace permissions for all member user IDs
     for (const userId of memberUserIds) {
       try {
         const workspacePermissions =
@@ -153,27 +213,17 @@ export class WorkspaceService {
             userId,
           );
 
-        // Map workspace permission actions to frontend permission format
         const workspaceActionMap: { [key: string]: string } = {
           ROOM_ADMIN: 'room_admin',
           ROOM_USER: 'room_user',
         };
 
-        // Extract and map workspace permissions
-        const workspaceActions = workspacePermissions
-          .flatMap((permission) =>
-            permission.actions.map(
-              (action) => workspaceActionMap[action] || action,
-            ),
-          )
-          .filter(
-            (action) =>
-              action !== 'READ' &&
-              action !== 'CREATE' &&
-              action !== 'UPDATE' &&
-              action !== 'DELETE' &&
-              action !== 'MANAGE',
-          ); // Filter out basic CRUD permissions
+        let workspaceActions: string[] = [];
+        if (workspacePermissions && workspacePermissions.actions) {
+          workspaceActions = workspacePermissions.actions.map(
+            (action) => workspaceActionMap[action] || action,
+          );
+        }
 
         memberWorkspacePermissions.set(userId, workspaceActions);
       } catch (error) {
@@ -185,7 +235,6 @@ export class WorkspaceService {
       }
     }
 
-    // Separate members by status
     const activeMembers = members
       .filter((m) => m.status === 'active')
       .map((member) => {
@@ -207,7 +256,7 @@ export class WorkspaceService {
           role: member.role,
           status: member.status,
           time: member.joined_at,
-          permissions: allPermissions, // Include both member and workspace permissions
+          permissions: allPermissions,
         };
       });
 
@@ -232,23 +281,22 @@ export class WorkspaceService {
           role: member.role,
           status: member.status,
           time: member.updatedAt || member.createdAt || new Date(),
-          permissions: allPermissions, // Include both member and workspace permissions
+          permissions: allPermissions,
         };
       });
 
-    // Map join requests - separate by type
     const requestMembers = joinRequests
       .filter((request) => request.type === 'request')
       .map((request) => {
         const user = userMap.get(request.target_user_id.toString());
         return {
           user_id: request.target_user_id.toString(),
-          request_id: request._id.toString(), // Add request_id for request management
+          request_id: request._id.toString(),
           email: user?.email || '',
           full_name: user?.full_name || '',
           avatar_url: user?.avatar_url || '',
-          role: 'user', // Default role for requests
-          status: 'pending', // All join requests are pending
+          role: 'user',
+          status: 'pending',
           time: request.createdAt || new Date(),
         };
       });
@@ -259,25 +307,23 @@ export class WorkspaceService {
         const user = userMap.get(request.target_user_id.toString());
         return {
           user_id: request.target_user_id.toString(),
-          request_id: request._id.toString(), // Add request_id for invitation cancellation
+          request_id: request._id.toString(),
           email: user?.email || '',
           full_name: user?.full_name || '',
           avatar_url: user?.avatar_url || '',
-          role: 'user', // Default role for invites
-          status: 'invited', // All invites are invited status
+          role: 'user',
+          status: 'invited',
           time: request.createdAt || new Date(),
         };
       });
 
-    // Determine current user's role and permissions
     let currentUserRole: 'owner' | 'admin' | 'member' | null = null;
     let currentUserPermissions: string[] = [];
 
     if (requestUserId) {
-      // Check if user is owner
       if (workspace.owner_id.toString() === requestUserId) {
         currentUserRole = 'owner';
-        // Owner has all permissions
+
         currentUserPermissions = [
           'RENAME_WORKSPACE',
           'EDIT_DESCRIPTION',
@@ -287,7 +333,6 @@ export class WorkspaceService {
           'MANAGE_PERMISSIONS',
         ];
       } else {
-        // Check if user is a member and get their role
         const currentUserMember = members.find(
           (m) =>
             m.user_id.toString() === requestUserId && m.status === 'active',
@@ -299,7 +344,6 @@ export class WorkspaceService {
         }
       }
 
-      // Get workspace permissions for the user
       try {
         const workspacePermissions =
           await this.workspacePermissionService.getUserWorkspacePermissions(
@@ -307,34 +351,23 @@ export class WorkspaceService {
             requestUserId,
           );
 
-        // Map workspace permission actions to frontend permission format
         const workspaceActionMap: { [key: string]: string } = {
           ROOM_ADMIN: 'room_admin',
           ROOM_USER: 'room_user',
         };
 
-        // Extract and map workspace permissions
-        const workspaceActions = workspacePermissions
-          .flatMap((permission) =>
-            permission.actions.map(
-              (action) => workspaceActionMap[action] || action,
-            ),
-          )
-          .filter(
-            (action) =>
-              action !== 'READ' &&
-              action !== 'CREATE' &&
-              action !== 'UPDATE' &&
-              action !== 'DELETE' &&
-              action !== 'MANAGE',
-          ); // Filter out basic CRUD permissions
+        let workspaceActions: string[] = [];
+        if (workspacePermissions && workspacePermissions.actions) {
+          workspaceActions = workspacePermissions.actions.map(
+            (action) => workspaceActionMap[action] || action,
+          );
+        }
 
         currentUserPermissions = [
           ...new Set([...currentUserPermissions, ...workspaceActions]),
         ];
       } catch (error) {
         console.error('Failed to fetch workspace permissions:', error);
-        // Continue with existing permissions if workspace permissions fetch fails
       }
     }
 
@@ -343,8 +376,8 @@ export class WorkspaceService {
       description: workspace.description || '',
       invite_code: workspace.invite_code,
       hasPassword: !!workspace.password,
-      permissions: currentUserPermissions, // Add current user's permissions
-      owner_id: workspace.owner_id.toString(), // Add owner_id for frontend
+      permissions: currentUserPermissions,
+      owner_id: workspace.owner_id.toString(),
       role: currentUserRole,
       members: {
         active: activeMembers,
@@ -355,22 +388,44 @@ export class WorkspaceService {
     };
   }
 
-  async getMyWorkspaces(userId: string): Promise<any[]> {
+  async getMyWorkspaces(userId: string): Promise<{
+    owner_workspace: any[];
+    member_workspace: any[];
+  }> {
     const memberships =
       await this.workspaceRepository.getWorkspacesByUser(userId);
-    return memberships.map((membership) => ({
-      role: membership.role,
-      status: membership.status,
-      joined_at: membership.joined_at,
-      workspace: membership.workspace_id,
-    }));
+
+    const owner_workspace: any[] = [];
+    const member_workspace: any[] = [];
+
+    memberships.forEach((membership) => {
+      const workspaceData = {
+        role: membership.role,
+        status: membership.status,
+        joined_at: membership.joined_at,
+        locked: (membership.workspace_id as any).locked || false,
+        workspace: membership.workspace_id,
+      };
+
+      // Check if user is owner of this workspace
+      // workspace_id is populated, so we can access owner_id
+      if ((membership.workspace_id as any).owner_id.toString() === userId) {
+        owner_workspace.push(workspaceData);
+      } else {
+        member_workspace.push(workspaceData);
+      }
+    });
+
+    return {
+      owner_workspace,
+      member_workspace,
+    };
   }
 
   async searchWorkspaceByInviteCode(
     inviteCode: string,
     userId: string,
   ): Promise<WorkspaceSearchResponseDto> {
-    // Find workspace by invite code
     const workspace =
       await this.workspaceRepository.getWorkspaceByInviteCode(inviteCode);
 
@@ -378,7 +433,6 @@ export class WorkspaceService {
       throw new AppException(ErrorCode.NOT_FOUND);
     }
 
-    // Check user status in relation to this workspace
     let userStatus:
       | 'none'
       | 'member'
@@ -387,11 +441,9 @@ export class WorkspaceService {
       | 'banned'
       | 'owner' = 'none';
 
-    // Check if user is owner
     if (workspace.owner_id.toString() === userId) {
       userStatus = 'owner';
     } else {
-      // Check if user is already a member
       const member = await this.workspaceRepository.getMember(
         workspace._id.toString(),
         userId,
@@ -404,7 +456,6 @@ export class WorkspaceService {
           userStatus = 'member';
         }
       } else {
-        // Check for pending requests or invitations only if not banned
         const joinRequest = await this.workspaceRepository.getJoinRequest(
           workspace._id.toString(),
           userId,
@@ -420,7 +471,6 @@ export class WorkspaceService {
       }
     }
 
-    // Get owner information
     let ownerInfo: OwnerInfoDto = {
       user_id: workspace.owner_id.toString(),
       email: '',
@@ -442,10 +492,8 @@ export class WorkspaceService {
       }
     } catch (error) {
       console.log('Failed to fetch owner info:', error);
-      // Continue with default owner info
     }
 
-    // Build response
     const workspaceInfo: WorkspaceSearchDto = {
       id: workspace._id.toString(),
       name: workspace.name,
@@ -466,7 +514,6 @@ export class WorkspaceService {
     userId: string,
     updateWorkspaceDto: UpdateWorkspaceDto,
   ): Promise<Workspace> {
-    // Check specific permissions based on what's being updated
     if (updateWorkspaceDto.name !== undefined) {
       await this.permissionService.checkPermission(
         workspaceId,
@@ -501,7 +548,6 @@ export class WorkspaceService {
     const workspace =
       await this.workspaceRepository.getWorkspaceById(workspaceId);
 
-    // Only owner can delete
     if (workspace.owner_id.toString() !== userId) {
       throw new AppException(ErrorCode.UNAUTHORIZED);
     }
@@ -509,7 +555,6 @@ export class WorkspaceService {
     await this.workspaceRepository.deleteWorkspace(workspaceId);
   }
 
-  // ========== Member Management ==========
   async getWorkspaceMembers(workspaceId: string): Promise<WorkspaceMember[]> {
     return await this.workspaceRepository.getMembersByWorkspace(workspaceId);
   }
@@ -520,7 +565,6 @@ export class WorkspaceService {
     targetUserId: string,
     role: string,
   ): Promise<WorkspaceMember> {
-    // Check if requester has MANAGE_MEMBERS permission
     await this.permissionService.checkManageMembersPermission(
       workspaceId,
       userId,
@@ -532,7 +576,6 @@ export class WorkspaceService {
       role,
     );
 
-    // Emit WebSocket event for role change
     this.workspaceGateway.emitRoleChanged(workspaceId, {
       targetUserId,
       newRole: role,
@@ -548,14 +591,11 @@ export class WorkspaceService {
     targetUserId: string,
     permissions: string[],
   ): Promise<WorkspaceMember> {
-    // Check if requester has MANAGE_PERMISSIONS permission
-    // This will allow only owner or users with MANAGE_PERMISSIONS to manage permissions
     await this.permissionService.checkManagePermissionsPermission(
       workspaceId,
       userId,
     );
 
-    // Additional check: if trying to grant MANAGE_PERMISSIONS, only owner can do it
     if (permissions.includes(Permission.MANAGE_PERMISSIONS)) {
       const workspace =
         await this.workspaceRepository.getWorkspaceById(workspaceId);
@@ -570,7 +610,6 @@ export class WorkspaceService {
       permissions,
     );
 
-    // Emit WebSocket event for permission change
     this.workspaceGateway.emitPermissionsChanged(workspaceId, {
       targetUserId,
       newPermissions: permissions,
@@ -585,7 +624,6 @@ export class WorkspaceService {
     userId: string,
     targetUserId: string,
   ): Promise<WorkspaceMember> {
-    // Check if requester has MANAGE_MEMBERS permission
     await this.permissionService.checkManageMembersPermission(
       workspaceId,
       userId,
@@ -597,7 +635,6 @@ export class WorkspaceService {
       'banned',
     );
 
-    // Emit WebSocket event for ban
     this.workspaceGateway.emitUserBanned(workspaceId, {
       targetUserId,
       bannedBy: userId,
@@ -611,7 +648,6 @@ export class WorkspaceService {
     userId: string,
     targetUserId: string,
   ): Promise<void> {
-    // Check if requester has MANAGE_MEMBERS permission or removing themselves
     if (userId !== targetUserId) {
       await this.permissionService.checkManageMembersPermission(
         workspaceId,
@@ -622,14 +658,12 @@ export class WorkspaceService {
     await this.workspaceRepository.removeMember(workspaceId, targetUserId);
     await this.workspaceRepository.decrementMemberCount(workspaceId);
 
-    // Emit WebSocket event for removal
     this.workspaceGateway.emitUserRemoved(workspaceId, {
       targetUserId,
       removedBy: userId,
     });
   }
 
-  // ========== Join Request Methods ==========
   async requestJoinWorkspace(
     userId: string,
     joinWorkspaceDto: JoinWorkspaceDto,
@@ -638,29 +672,27 @@ export class WorkspaceService {
       joinWorkspaceDto.invite_code,
     );
 
-    // Check if already a member
     const existingMember = await this.workspaceRepository.getMember(
       workspace._id.toString(),
       userId,
     );
     if (existingMember) {
-      throw new AppException(ErrorCode.EMAIL_EXISTS); // Reuse existing error code
+      throw new AppException(ErrorCode.EMAIL_EXISTS);
     }
 
-    // Check if already has a pending request
     const existingRequest = await this.workspaceRepository.getJoinRequest(
       workspace._id.toString(),
       userId,
     );
     if (existingRequest) {
-      throw new AppException(ErrorCode.EMAIL_EXISTS); // Reuse existing error code
+      throw new AppException(ErrorCode.EMAIL_EXISTS);
     }
 
     return await this.workspaceRepository.createJoinRequest(
       workspace._id.toString(),
-      userId, // target_user_id (người muốn join)
-      userId, // requester_id (cũng là người đó)
-      'request', // type
+      userId,
+      userId,
+      'request',
       joinWorkspaceDto.message,
     );
   }
@@ -669,40 +701,34 @@ export class WorkspaceService {
     userId: string,
     joinDto: JoinWorkspaceWithPasswordDto,
   ): Promise<void> {
-    // Find workspace by invite code
     const workspace = await this.workspaceRepository.getWorkspaceByInviteCode(
       joinDto.invite_code,
     );
 
-    // Check password
     if (!workspace.password || workspace.password !== joinDto.password) {
       throw new AppException(ErrorCode.INVALID_PASSWORD);
     }
 
-    // Check if already a member
     const existingMember = await this.workspaceRepository.getMember(
       workspace._id.toString(),
       userId,
     );
     if (existingMember) {
-      throw new AppException(ErrorCode.EMAIL_EXISTS); // Already a member
+      throw new AppException(ErrorCode.EMAIL_EXISTS);
     }
 
-    // Add user as member directly
     await this.workspaceRepository.addMember(
       workspace._id.toString(),
       userId,
-      'user', // Default role
+      'user',
     );
 
-    // Tạo default permissions cho user
     await this.workspacePermissionService.createDefaultPermissions(
       workspace._id.toString(),
       userId,
       'user',
     );
 
-    // Update member count
     await this.workspaceRepository.updateWorkspace(workspace._id.toString(), {
       member_count: workspace.member_count + 1,
     });
@@ -714,19 +740,16 @@ export class WorkspaceService {
     targetUserEmail: string,
     message?: string,
   ): Promise<WorkspaceJoinRequest> {
-    // Check if requester is admin or owner (no specific permission required)
     await this.permissionService.checkAdminOrOwnerPermission(
       workspaceId,
       adminUserId,
     );
 
-    // Get target user info by email
     const targetUser = await this.userHttpClient.getUser(targetUserEmail);
     if (!targetUser?.user_id) {
       throw new AppException(ErrorCode.UNAUTHORIZED);
     }
 
-    // Check if already a member
     const existingMember = await this.workspaceRepository.getMember(
       workspaceId,
       targetUser.user_id,
@@ -735,7 +758,6 @@ export class WorkspaceService {
       throw new AppException(ErrorCode.EMAIL_EXISTS);
     }
 
-    // Check if already has a pending invite/request
     const existingRequest = await this.workspaceRepository.getJoinRequest(
       workspaceId,
       targetUser.user_id,
@@ -746,9 +768,9 @@ export class WorkspaceService {
 
     return await this.workspaceRepository.createJoinRequest(
       workspaceId,
-      targetUser.user_id, // target_user_id
-      adminUserId, // requester_id (admin)
-      'invite', // type
+      targetUser.user_id,
+      adminUserId,
+      'invite',
       message || 'You have been invited to join this workspace',
     );
   }
@@ -763,7 +785,6 @@ export class WorkspaceService {
     failed: Array<{ email: string; reason: string }>;
     summary: { total: number; successful: number; failed: number };
   }> {
-    // Check if requester is admin or owner (no specific permission required)
     await this.permissionService.checkAdminOrOwnerPermission(
       workspaceId,
       adminUserId,
@@ -771,21 +792,18 @@ export class WorkspaceService {
     const successful: Array<{ email: string; requestId: string }> = [];
     const failed: Array<{ email: string; reason: string }> = [];
 
-    // Process each userId
     for (const userId of userIds) {
       try {
-        // Get target user info by userId
         const targetUsers = await this.userHttpClient.getUsersByIds([userId]);
         const targetUser = targetUsers[0];
         if (!targetUser?.user_id) {
           failed.push({
-            email: userId, // Keep using email field for consistency with frontend
+            email: userId,
             reason: 'User not found',
           });
           continue;
         }
 
-        // Check if already a member
         const existingMember = await this.workspaceRepository.getMember(
           workspaceId,
           targetUser.user_id,
@@ -798,7 +816,6 @@ export class WorkspaceService {
           continue;
         }
 
-        // Check if already has a pending invite/request
         const existingRequest = await this.workspaceRepository.getJoinRequest(
           workspaceId,
           targetUser.user_id,
@@ -811,12 +828,11 @@ export class WorkspaceService {
           continue;
         }
 
-        // Create invitation
         const invitation = await this.workspaceRepository.createJoinRequest(
           workspaceId,
-          targetUser.user_id, // target_user_id
-          adminUserId, // requester_id (admin)
-          'invite', // type
+          targetUser.user_id,
+          adminUserId,
+          'invite',
           message || 'You have been invited to join this workspace',
         );
 
@@ -848,29 +864,24 @@ export class WorkspaceService {
     workspaceId: string,
     userId: string,
   ): Promise<JoinRequestResponseDto[]> {
-    // Check if user has ACCEPT_MEMBER permission
     await this.permissionService.checkAcceptMemberPermission(
       workspaceId,
       userId,
     );
 
-    // Get all join requests for this workspace
     const requests =
       await this.workspaceRepository.getJoinRequestsByWorkspace(workspaceId);
 
-    // Get workspace info
     const workspace =
       await this.workspaceRepository.getWorkspaceById(workspaceId);
     if (!workspace) {
       throw new AppException(ErrorCode.NOT_FOUND);
     }
 
-    // Get all members to count
     const members =
       await this.workspaceRepository.getMembersByWorkspace(workspaceId);
     const memberCount = members.length;
 
-    // Get workspace owner info from members
     const owner = members.find((member) => member.role === 'admin');
     let ownerInfo: UserResponse | null = null;
     if (owner) {
@@ -886,13 +897,11 @@ export class WorkspaceService {
       }
     }
 
-    // Get all requester IDs
     const requesterIds = requests.map((request) =>
       request.requester_id.toString(),
     );
     const uniqueRequesterIds = [...new Set(requesterIds)];
 
-    // Get all requester info in one call
     let requestersInfo: UserResponse[] = [];
     if (uniqueRequesterIds.length > 0) {
       try {
@@ -903,13 +912,11 @@ export class WorkspaceService {
       }
     }
 
-    // Transform requests to include all required info
     const result: JoinRequestResponseDto[] = requests.map((request) => {
       const requesterInfo = requestersInfo.find(
         (user) => user.user_id === request.requester_id.toString(),
       );
 
-      // Map UserResponse to UserInfoDto
       const mapUserToDto = (user: UserResponse | null): UserInfoDto | null => {
         if (!user) return null;
         return {
@@ -920,7 +927,6 @@ export class WorkspaceService {
         };
       };
 
-      // Create workspace info DTO
       const workspaceInfo: WorkspaceInfoDto = {
         id: workspace._id.toString(),
         name: workspace.name,
@@ -930,7 +936,6 @@ export class WorkspaceService {
         owner: mapUserToDto(ownerInfo),
       };
 
-      // Create join request response DTO
       const joinRequestDto: JoinRequestResponseDto = {
         requestId: request._id.toString(),
         type: request.type,
@@ -951,7 +956,7 @@ export class WorkspaceService {
       'Fetching invitations for user:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa123333333333',
       userId,
     );
-    // Get all invitations where user is the target
+
     const invitations =
       await this.workspaceRepository.getInvitationsByUser(userId);
 
@@ -959,16 +964,13 @@ export class WorkspaceService {
       return [];
     }
 
-    // Filter out invitations from workspaces where user is banned
     const validInvitations: WorkspaceJoinRequest[] = [];
     for (const invitation of invitations) {
-      // Check if user is banned from this workspace
       const member = await this.workspaceRepository.getMember(
         invitation.workspace_id.toString(),
         userId,
       );
 
-      // If user is not a member or not banned, include the invitation
       if (!member || member.status !== 'banned') {
         validInvitations.push(invitation);
       }
@@ -978,7 +980,6 @@ export class WorkspaceService {
       return [];
     }
 
-    // Get all workspace IDs and requester IDs from valid invitations
     const workspaceIds = validInvitations.map((inv) =>
       inv.workspace_id.toString(),
     );
@@ -988,7 +989,6 @@ export class WorkspaceService {
     const uniqueWorkspaceIds = [...new Set(workspaceIds)];
     const uniqueRequesterIds = [...new Set(requesterIds)];
 
-    // Get all workspace info
     const workspacesPromises = uniqueWorkspaceIds.map(async (id) => {
       try {
         return await this.workspaceRepository.getWorkspaceById(id);
@@ -999,7 +999,6 @@ export class WorkspaceService {
     });
     const workspaces = (await Promise.all(workspacesPromises)).filter(Boolean);
 
-    // Get all workspace members to find owners and count
     const allMembersPromises = uniqueWorkspaceIds.map(async (id) => {
       try {
         return {
@@ -1015,7 +1014,6 @@ export class WorkspaceService {
       Boolean,
     );
 
-    // Get all owner IDs
     const ownerIds: string[] = [];
     allMembersResults.forEach((result) => {
       if (result) {
@@ -1026,7 +1024,6 @@ export class WorkspaceService {
       }
     });
 
-    // Get all user info in batch calls
     const allUserIds = [...new Set([...uniqueRequesterIds, ...ownerIds])];
     let usersInfo: UserResponse[] = [];
     if (allUserIds.length > 0) {
@@ -1037,7 +1034,6 @@ export class WorkspaceService {
       }
     }
 
-    // Map UserResponse to UserInfoDto
     const mapUserToDto = (user: UserResponse | null): UserInfoDto | null => {
       if (!user) return null;
       return {
@@ -1048,10 +1044,8 @@ export class WorkspaceService {
       };
     };
 
-    // Transform invitations to DTOs
     const result: JoinRequestResponseDto[] = validInvitations.map(
       (invitation) => {
-        // Find corresponding workspace
         const workspace = workspaces.find(
           (ws) =>
             ws && ws._id.toString() === invitation.workspace_id.toString(),
@@ -1060,13 +1054,11 @@ export class WorkspaceService {
           throw new AppException(ErrorCode.NOT_FOUND);
         }
 
-        // Find workspace members
         const workspaceMembersResult = allMembersResults.find(
           (result) => result && result.workspaceId === workspace._id.toString(),
         );
         const workspaceMembers = workspaceMembersResult?.members || [];
 
-        // Find owner
         const owner = workspaceMembers.find(
           (member) => member.role === 'admin',
         );
@@ -1074,15 +1066,12 @@ export class WorkspaceService {
           (user) => user.user_id === owner?.user_id.toString(),
         );
 
-        // Find requester info
         const requesterInfo = usersInfo.find(
           (user) => user.user_id === invitation.requester_id.toString(),
         );
 
-        // Get member count
         const memberCount = workspaceMembers.length;
 
-        // Create workspace info DTO
         const workspaceInfo: WorkspaceInfoDto = {
           id: workspace._id.toString(),
           name: workspace.name,
@@ -1092,7 +1081,6 @@ export class WorkspaceService {
           owner: mapUserToDto(ownerInfo || null),
         };
 
-        // Create join request response DTO
         const joinRequestDto: JoinRequestResponseDto = {
           requestId: invitation._id.toString(),
           type: invitation.type,
@@ -1110,18 +1098,15 @@ export class WorkspaceService {
   }
 
   async getMyRequests(userId: string): Promise<JoinRequestResponseDto[]> {
-    // Get all requests where user is the requester (they sent join requests)
     const requests = await this.workspaceRepository.getRequestsByUser(userId);
 
     if (requests.length === 0) {
       return [];
     }
 
-    // Get all workspace IDs
     const workspaceIds = requests.map((req) => req.workspace_id.toString());
     const uniqueWorkspaceIds = [...new Set(workspaceIds)];
 
-    // Get all workspace info
     const workspacesPromises = uniqueWorkspaceIds.map(async (id: string) => {
       try {
         return await this.workspaceRepository.getWorkspaceById(id);
@@ -1132,7 +1117,6 @@ export class WorkspaceService {
     });
     const workspaces = (await Promise.all(workspacesPromises)).filter(Boolean);
 
-    // Get all workspace members to find owners and count
     const allMembersPromises = uniqueWorkspaceIds.map(async (id: string) => {
       try {
         return {
@@ -1148,7 +1132,6 @@ export class WorkspaceService {
       Boolean,
     );
 
-    // Get all owner IDs
     const ownerIds: string[] = [];
     allMembersResults.forEach((result) => {
       if (result) {
@@ -1159,7 +1142,6 @@ export class WorkspaceService {
       }
     });
 
-    // Get user info (including user themselves as requester)
     const allUserIds = [...new Set([userId, ...ownerIds])];
     let usersInfo: UserResponse[] = [];
     if (allUserIds.length > 0) {
@@ -1170,7 +1152,6 @@ export class WorkspaceService {
       }
     }
 
-    // Map UserResponse to UserInfoDto
     const mapUserToDto = (user: UserResponse | null): UserInfoDto | null => {
       if (!user) return null;
       return {
@@ -1181,9 +1162,7 @@ export class WorkspaceService {
       };
     };
 
-    // Transform requests to DTOs
     const result: JoinRequestResponseDto[] = requests.map((request) => {
-      // Find corresponding workspace
       const workspace = workspaces.find(
         (ws) => ws && ws._id.toString() === request.workspace_id.toString(),
       );
@@ -1191,27 +1170,22 @@ export class WorkspaceService {
         throw new AppException(ErrorCode.NOT_FOUND);
       }
 
-      // Find workspace members
       const workspaceMembersResult = allMembersResults.find(
         (result) => result && result.workspaceId === workspace._id.toString(),
       );
       const workspaceMembers = workspaceMembersResult?.members || [];
 
-      // Find owner
       const owner = workspaceMembers.find((member) => member.role === 'admin');
       const ownerInfo = usersInfo.find(
         (user) => user.user_id === owner?.user_id.toString(),
       );
 
-      // Find requester info (this should be the current user)
       const requesterInfo = usersInfo.find(
         (user) => user.user_id === request.requester_id.toString(),
       );
 
-      // Get member count
       const memberCount = workspaceMembers.length;
 
-      // Create workspace info DTO
       const workspaceInfo: WorkspaceInfoDto = {
         id: workspace._id.toString(),
         name: workspace.name,
@@ -1221,7 +1195,6 @@ export class WorkspaceService {
         owner: mapUserToDto(ownerInfo || null),
       };
 
-      // Create join request response DTO
       const joinRequestDto: JoinRequestResponseDto = {
         requestId: request._id.toString(),
         type: request.type,
@@ -1242,7 +1215,6 @@ export class WorkspaceService {
     userId: string,
     targetUserId: string,
   ): Promise<void> {
-    // Check if user has ACCEPT_MEMBER permission
     console.log('Approving join request:', {
       workspaceId,
       userId,
@@ -1253,7 +1225,6 @@ export class WorkspaceService {
       userId,
     );
 
-    // Find the join request by workspaceId, targetUserId, and type
     const request =
       await this.workspaceRepository.getJoinRequestByUserAndWorkspace(
         workspaceId,
@@ -1265,18 +1236,15 @@ export class WorkspaceService {
       throw new AppException(ErrorCode.NOT_FOUND);
     }
 
-    // Add user as member
     await this.workspaceRepository.addMember(workspaceId, targetUserId, 'user');
     await this.workspaceRepository.incrementMemberCount(workspaceId);
 
-    // Tạo default permissions cho user mới
     await this.permissionService.createDefaultPermissions(
       workspaceId,
       targetUserId,
       'user',
     );
 
-    // Delete the join request
     await this.workspaceRepository.deleteJoinRequest(request._id.toString());
   }
 
@@ -1285,13 +1253,11 @@ export class WorkspaceService {
     userId: string,
     targetUserId: string,
   ): Promise<void> {
-    // Check if user has ACCEPT_MEMBER permission
     await this.permissionService.checkAcceptMemberPermission(
       workspaceId,
       userId,
     );
 
-    // Find the join request by workspaceId, targetUserId, and type
     const request =
       await this.workspaceRepository.getJoinRequestByUserAndWorkspace(
         workspaceId,
@@ -1303,12 +1269,10 @@ export class WorkspaceService {
       throw new AppException(ErrorCode.NOT_FOUND);
     }
 
-    // Delete the join request (rejection means removal)
     await this.workspaceRepository.deleteJoinRequest(request._id.toString());
   }
 
   async cancelJoinRequest(userId: string, requestId: string): Promise<void> {
-    // Get request info to verify ownership
     const request =
       await this.workspaceRepository.getJoinRequestById(requestId);
 
@@ -1316,17 +1280,14 @@ export class WorkspaceService {
       throw new AppException(ErrorCode.NOT_FOUND);
     }
 
-    // Check if the request belongs to the current user
     if (request.requester_id.toString() !== userId) {
       throw new AppException(ErrorCode.UNAUTHORIZED);
     }
 
-    // Delete the join request
     await this.workspaceRepository.deleteJoinRequest(requestId);
   }
 
   async acceptInvitation(userId: string, requestId: string): Promise<void> {
-    // Get request info to verify it's an invitation for current user
     const request =
       await this.workspaceRepository.getJoinRequestById(requestId);
 
@@ -1334,7 +1295,6 @@ export class WorkspaceService {
       throw new AppException(ErrorCode.NOT_FOUND);
     }
 
-    // Check if the invitation is for the current user and is of type 'invite'
     if (
       request.target_user_id.toString() !== userId ||
       request.type !== 'invite'
@@ -1342,7 +1302,6 @@ export class WorkspaceService {
       throw new AppException(ErrorCode.UNAUTHORIZED);
     }
 
-    // Add user as member
     await this.workspaceRepository.addMember(
       request.workspace_id.toString(),
       userId,
@@ -1352,19 +1311,16 @@ export class WorkspaceService {
       request.workspace_id.toString(),
     );
 
-    // Tạo default permissions cho user mới
     await this.permissionService.createDefaultPermissions(
       request.workspace_id.toString(),
       userId,
       'user',
     );
 
-    // Delete the invitation request
     await this.workspaceRepository.deleteJoinRequest(requestId);
   }
 
   async rejectInvitation(userId: string, requestId: string): Promise<void> {
-    // Get request info to verify it's an invitation
     const request =
       await this.workspaceRepository.getJoinRequestById(requestId);
 
@@ -1372,39 +1328,32 @@ export class WorkspaceService {
       throw new AppException(ErrorCode.NOT_FOUND);
     }
 
-    // Check if it's an invitation
     if (request.type !== 'invite') {
       throw new AppException(ErrorCode.UNAUTHORIZED);
     }
 
-    // Check if user is either the target user (person invited) or has ACCEPT_MEMBER permission
     const isTargetUser = request.target_user_id.toString() === userId;
     let hasAcceptPermission = false;
 
     if (!isTargetUser) {
       try {
-        // Check if user has ACCEPT_MEMBER permission in the workspace
         await this.permissionService.checkAcceptMemberPermission(
           request.workspace_id.toString(),
           userId,
         );
         hasAcceptPermission = true;
       } catch (error) {
-        // User does not have permission
         hasAcceptPermission = false;
       }
     }
 
-    // User must be either the target user or have ACCEPT_MEMBER permission
     if (!isTargetUser && !hasAcceptPermission) {
       throw new AppException(ErrorCode.UNAUTHORIZED);
     }
 
-    // Simply delete the invitation request (rejection/cancellation)
     await this.workspaceRepository.deleteJoinRequest(requestId);
   }
 
-  // ========== Helper Methods ==========
   private async checkUserRole(
     workspaceId: string,
     userId: string,
@@ -1439,7 +1388,6 @@ export class WorkspaceService {
     requestId?: string,
     targetUserId?: string,
   ): Promise<void> {
-    // Check if requester has MANAGE_MEMBERS permission
     await this.permissionService.checkManageMembersPermission(
       workspaceId,
       adminUserId,
@@ -1448,7 +1396,6 @@ export class WorkspaceService {
     let userToBan: string;
 
     if (requestId) {
-      // Case 1: Ban user from a join request
       const joinRequest =
         await this.workspaceRepository.getJoinRequestById(requestId);
       if (!joinRequest) {
@@ -1461,13 +1408,10 @@ export class WorkspaceService {
 
       userToBan = joinRequest.target_user_id.toString();
 
-      // Delete the join request since we're banning the user
       await this.workspaceRepository.deleteJoinRequest(requestId);
     } else if (targetUserId) {
-      // Case 2: Ban user by userId
       userToBan = targetUserId;
 
-      // Check if user has any pending requests and delete them
       const userRequest =
         await this.workspaceRepository.getJoinRequestByUserAndWorkspace(
           workspaceId,
@@ -1481,7 +1425,6 @@ export class WorkspaceService {
         );
       }
 
-      // Also check for any pending invitations
       const userInvitation =
         await this.workspaceRepository.getJoinRequestByUserAndWorkspace(
           workspaceId,
@@ -1495,26 +1438,23 @@ export class WorkspaceService {
         );
       }
     } else {
-      throw new AppException(ErrorCode.UNAUTHORIZED); // Reuse existing error code
+      throw new AppException(ErrorCode.UNAUTHORIZED);
     }
 
-    // Check if user is already a member
     const existingMember = await this.workspaceRepository.getMember(
       workspaceId,
       userToBan,
     );
 
     if (existingMember) {
-      // If user is already a member, update their status to banned
       await this.workspaceRepository.updateMemberStatus(
         workspaceId,
         userToBan,
         'banned',
       );
     } else {
-      // If user is not a member, add them as banned member using repository
       await this.workspaceRepository.addMember(workspaceId, userToBan);
-      // Then update status to banned
+
       await this.workspaceRepository.updateMemberStatus(
         workspaceId,
         userToBan,
@@ -1522,7 +1462,6 @@ export class WorkspaceService {
       );
     }
 
-    // Emit WebSocket event for ban
     this.workspaceGateway.emitUserBanned(workspaceId, {
       targetUserId: userToBan,
       bannedBy: adminUserId,
@@ -1540,13 +1479,11 @@ export class WorkspaceService {
     targetUserId: string,
     action: 'remove' | 'unban',
   ): Promise<void> {
-    // Check if requester has MANAGE_MEMBERS permission
     await this.permissionService.checkManageMembersPermission(
       workspaceId,
       adminUserId,
     );
 
-    // Check if target user exists and is banned
     const existingMember = await this.workspaceRepository.getMember(
       workspaceId,
       targetUserId,
@@ -1557,21 +1494,18 @@ export class WorkspaceService {
     }
 
     if (existingMember.status !== 'banned') {
-      throw new AppException(ErrorCode.UNAUTHORIZED); // User is not banned
+      throw new AppException(ErrorCode.UNAUTHORIZED);
     }
 
     if (action === 'remove') {
-      // Remove user completely from workspace
       await this.workspaceRepository.removeMember(workspaceId, targetUserId);
-      // Note: We don't decrement member count for banned users as they weren't counted
     } else if (action === 'unban') {
-      // Change status from banned to active
       await this.workspaceRepository.updateMemberStatus(
         workspaceId,
         targetUserId,
         'active',
       );
-      // Update member count since user is now active
+
       await this.workspaceRepository.incrementMemberCount(workspaceId);
     }
   }
@@ -1588,13 +1522,11 @@ export class WorkspaceService {
     permissions: Permission[],
     action: 'grant' | 'revoke' | 'set' = 'set',
   ): Promise<WorkspaceMember> {
-    // Check if requester has MANAGE_PERMISSIONS permission
     await this.permissionService.checkManagePermissionsPermission(
       workspaceId,
       userId,
     );
 
-    // Additional check: if trying to grant MANAGE_PERMISSIONS, only owner can do it
     if (
       permissions.includes(Permission.MANAGE_PERMISSIONS) &&
       action !== 'revoke'
@@ -1606,132 +1538,71 @@ export class WorkspaceService {
       }
     }
 
-    // Separate workspace permissions from member permissions
-    const workspacePermissionMap: {
-      [key: string]: { module: string; action: string };
-    } = {
-      room_admin: { module: 'live_room', action: 'ROOM_ADMIN' },
-      room_user: { module: 'live_room', action: 'ROOM_USER' },
-    };
-
-    const workspacePermissions: string[] = [];
+    const roomPermissions: string[] = [];
     const memberPermissions: Permission[] = [];
 
-    // Classify permissions
     permissions.forEach((permission) => {
-      if (permission === 'room_permission') {
-        // Special handling for room_permission toggle
-        workspacePermissions.push(permission);
-      } else if (workspacePermissionMap[permission]) {
-        workspacePermissions.push(permission);
+      if (
+        permission === 'room_permission' ||
+        permission === 'room_admin' ||
+        permission === 'room_user'
+      ) {
+        roomPermissions.push(permission);
       } else {
         memberPermissions.push(permission);
       }
     });
 
-    // Handle workspace permissions
-    for (const wsPermission of workspacePermissions) {
-      if (wsPermission === 'room_permission') {
-        // Special handling for room permission toggle
+    for (const roomPermission of roomPermissions) {
+      if (roomPermission === 'room_permission') {
         const currentPermission =
-          await this.workspacePermissionService.getUserModulePermissions(
+          await this.workspacePermissionService.getUserPermissions(
             workspaceId,
             targetUserId,
-            'live_room',
           );
 
-        const currentActions = currentPermission?.actions || ['READ'];
+        const currentActions = currentPermission?.actions || ['ROOM_USER'];
         const hasRoomAdmin = currentActions.includes('ROOM_ADMIN');
 
         if (action === 'grant' || action === 'set') {
-          // Toggle: if currently admin, set to user; if currently user/none, set to admin
           if (hasRoomAdmin) {
-            // Currently admin, switch to user
             await this.workspacePermissionService.updatePermissions(
               workspaceId,
               targetUserId,
-              'live_room',
               ['ROOM_USER'],
             );
           } else {
-            // Currently user or no permission, switch to admin
             await this.workspacePermissionService.updatePermissions(
               workspaceId,
               targetUserId,
-              'live_room',
               ['ROOM_ADMIN'],
             );
           }
         } else if (action === 'revoke') {
-          // Revoke means set to basic user permission
           await this.workspacePermissionService.updatePermissions(
             workspaceId,
             targetUserId,
-            'live_room',
             ['ROOM_USER'],
           );
         }
-      } else {
-        // Regular workspace permission handling
-        const mapping = workspacePermissionMap[wsPermission];
-
-        if (action === 'grant') {
-          // Get current permissions and add new one
-          const currentPermission =
-            await this.workspacePermissionService.getUserModulePermissions(
-              workspaceId,
-              targetUserId,
-              mapping.module,
-            );
-
-          const currentActions = currentPermission?.actions || ['READ']; // Default to READ if no permission exists
-          const newActions = [...new Set([...currentActions, mapping.action])];
-
-          await this.workspacePermissionService.updatePermissions(
-            workspaceId,
-            targetUserId,
-            mapping.module,
-            newActions,
-          );
-        } else if (action === 'revoke') {
-          // Get current permissions and remove specified one
-          const currentPermission =
-            await this.workspacePermissionService.getUserModulePermissions(
-              workspaceId,
-              targetUserId,
-              mapping.module,
-            );
-
-          if (currentPermission) {
-            const newActions = currentPermission.actions.filter(
-              (action) => action !== mapping.action,
-            );
-            // Ensure at least READ permission remains, or delete if only READ and we're removing something else
-            const finalActions =
-              newActions.length === 0 ? ['READ'] : newActions;
-
-            await this.workspacePermissionService.updatePermissions(
-              workspaceId,
-              targetUserId,
-              mapping.module,
-              finalActions,
-            );
-          }
-        } else if (action === 'set') {
-          // Set specific permission (replace current actions with new one)
-          await this.workspacePermissionService.updatePermissions(
-            workspaceId,
-            targetUserId,
-            mapping.module,
-            [mapping.action],
-          );
-        }
+      } else if (roomPermission === 'room_admin') {
+        // Set user as ROOM_ADMIN
+        await this.workspacePermissionService.updatePermissions(
+          workspaceId,
+          targetUserId,
+          ['ROOM_ADMIN'],
+        );
+      } else if (roomPermission === 'room_user') {
+        // Set user as ROOM_USER
+        await this.workspacePermissionService.updatePermissions(
+          workspaceId,
+          targetUserId,
+          ['ROOM_USER'],
+        );
       }
     }
 
-    // Handle member permissions (existing logic)
     if (memberPermissions.length > 0) {
-      // Get current member permissions
       const member = await this.workspaceRepository.getMember(
         workspaceId,
         targetUserId,
@@ -1744,21 +1615,17 @@ export class WorkspaceService {
 
       switch (action) {
         case 'grant':
-          // Add new permissions to existing ones
           newPermissions = [
             ...new Set([...member.permissions, ...memberPermissions]),
           ];
           break;
         case 'revoke':
-          // Remove specified permissions
           newPermissions = member.permissions.filter(
             (p) => !memberPermissions.includes(p as Permission),
           );
           break;
         case 'set':
         default:
-          // For 'set' action with mixed permissions, only set member permissions
-          // Workspace permissions are handled separately above
           newPermissions = memberPermissions;
           break;
       }
@@ -1772,7 +1639,6 @@ export class WorkspaceService {
       return updatedMember;
     }
 
-    // If only workspace permissions were managed, return current member
     const member = await this.workspaceRepository.getMember(
       workspaceId,
       targetUserId,
@@ -1792,20 +1658,17 @@ export class WorkspaceService {
     adminUserId: string,
     targetUserId: string,
   ): Promise<void> {
-    // Check if requester has MANAGE_MEMBERS permission
     await this.permissionService.checkManageMembersPermission(
       workspaceId,
       adminUserId,
     );
 
-    // Cannot remove owner
     const workspace =
       await this.workspaceRepository.getWorkspaceById(workspaceId);
     if (workspace.owner_id.toString() === targetUserId) {
-      throw new AppException(ErrorCode.UNAUTHORIZED); // Cannot remove owner
+      throw new AppException(ErrorCode.UNAUTHORIZED);
     }
 
-    // Check if target user exists in workspace
     const member = await this.workspaceRepository.getMember(
       workspaceId,
       targetUserId,
@@ -1814,33 +1677,27 @@ export class WorkspaceService {
       throw new AppException(ErrorCode.NOT_FOUND);
     }
 
-    // Remove member completely from workspace
     await this.workspaceRepository.removeMember(workspaceId, targetUserId);
 
-    // Decrease member count only if the member was active
     if (member.status === 'active') {
       await this.workspaceRepository.decrementMemberCount(workspaceId);
     }
 
-    // Emit WebSocket event for removal
     this.workspaceGateway.emitUserRemoved(workspaceId, {
       targetUserId,
       removedBy: adminUserId,
     });
   }
 
-  // ========== Access Verification Methods ==========
   async getWorkspaceBasicInfo(
     workspaceId: string,
     userId: string,
   ): Promise<Workspace> {
-    // First verify user has access
     const hasAccess = await this.verifyUserAccess(workspaceId, userId);
     if (!hasAccess) {
       throw new AppException(ErrorCode.UNAUTHORIZED);
     }
 
-    // Return basic workspace info
     return await this.workspaceRepository.getWorkspaceById(workspaceId);
   }
 
@@ -1849,14 +1706,15 @@ export class WorkspaceService {
     userId: string,
   ): Promise<boolean> {
     try {
-      // Check if workspace exists
       const workspace =
         await this.workspaceRepository.getWorkspaceById(workspaceId);
       if (!workspace) {
         return false;
       }
+      if (workspace.locked) {
+        return false;
+      }
 
-      // Check if user is an active member of the workspace
       const member = await this.workspaceRepository.getMember(
         workspaceId,
         userId,
@@ -1866,6 +1724,62 @@ export class WorkspaceService {
     } catch (error) {
       console.error('Error verifying workspace access:', error);
       return false;
+    }
+  }
+
+  /**
+   * Lock all workspaces of a user except the first one created
+   * Returns info about locked workspaces and preserved first workspace
+   */
+  async lockUserWorkspacesExceptFirst(userId: string): Promise<{
+    total: number;
+    locked: number;
+    preserved: { workspaceId: string; workspaceName: string };
+  }> {
+    try {
+      // Get all workspaces owned by the user, sorted by creation date
+      const workspaces =
+        await this.workspaceRepository.getWorkspacesByOwner(userId);
+
+      if (workspaces.length === 0) {
+        throw new AppException(ErrorCode.NOT_FOUND);
+      }
+
+      // Sort by createdAt to find the first workspace
+      const sortedWorkspaces = workspaces.sort((a, b) => {
+        const dateA = new Date(a.createdAt || 0).getTime();
+        const dateB = new Date(b.createdAt || 0).getTime();
+        return dateA - dateB;
+      });
+
+      const firstWorkspace = sortedWorkspaces[0];
+      const workspacesToLock = sortedWorkspaces.slice(1);
+
+      // Lock all workspaces except the first one
+      let lockedCount = 0;
+      for (const workspace of workspacesToLock) {
+        await this.workspaceRepository.updateWorkspace(
+          workspace._id.toString(),
+          { locked: true },
+        );
+        lockedCount++;
+      }
+
+      console.log(
+        `Locked ${lockedCount} workspaces for user ${userId}, preserved: ${firstWorkspace._id}`,
+      );
+
+      return {
+        total: workspaces.length,
+        locked: lockedCount,
+        preserved: {
+          workspaceId: firstWorkspace._id.toString(),
+          workspaceName: firstWorkspace.name,
+        },
+      };
+    } catch (error) {
+      console.error(`Failed to lock workspaces for user ${userId}:`, error);
+      throw error;
     }
   }
 }

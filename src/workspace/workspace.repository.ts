@@ -64,6 +64,15 @@ export class WorkspaceRepository {
     });
   }
 
+  /**
+   * Get total workspace count for a user (workspaces they own)
+   */
+  async getUserWorkspaceCount(userId: string): Promise<number> {
+    return await this.workspaceModel.countDocuments({
+      owner_id: new Types.ObjectId(userId),
+    });
+  }
+
   async updateWorkspace(
     workspaceId: string,
     updateData: Partial<Workspace>,
