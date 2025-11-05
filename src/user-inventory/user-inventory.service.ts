@@ -45,15 +45,34 @@ export class UserInventoryService {
     return this.repo.addReward(userId, rewardValue);
   }
 
-  async getUserFrames(userId: string): Promise<{ frames: Frame[]; activeFrame?: string; userPoints: number }> {
+  async getUserFrames(
+    userId: string,
+  ): Promise<{ frames: Frame[]; activeFrame?: string; userPoints: number }> {
     return this.repo.getUserFrames(userId);
   }
 
-  async setActiveFrame(userId: string, frameId: string): Promise<{ success: boolean; message: string }> {
+  async setActiveFrame(
+    userId: string,
+    frameId: string,
+  ): Promise<{ success: boolean; message: string }> {
     return this.repo.setActiveFrame(userId, frameId);
   }
 
-  async exchangeFrame(userId: string, frameId: string): Promise<{ success: boolean; message: string; userInventory?: UserInventory }> {
+  async exchangeFrame(
+    userId: string,
+    frameId: string,
+  ): Promise<{
+    success: boolean;
+    message: string;
+    userInventory?: UserInventory;
+  }> {
     return this.repo.exchangeFrame(userId, frameId);
+  }
+
+  /**
+   * Add OP credits to user inventory
+   */
+  async addOpCredits(userId: string, amount: number): Promise<UserInventory> {
+    return this.repo.addOpCredits(userId, amount);
   }
 }
