@@ -20,4 +20,11 @@ export class PurchaseHistoryController {
     const result = await this.purchaseHistoryService.findBySeller(userId, page, limit);
     return new ApiResponse(result);
   }
+
+  @Get('analytics')
+  async getSalesAnalytics(@Req() req: Request): Promise<ApiResponse<any>> {
+    const userId = (req as any).userInfo?.userId || (req as any).userInfo?._id;
+    const result = await this.purchaseHistoryService.getSalesAnalytics(userId);
+    return new ApiResponse(result);
+  }
 }
