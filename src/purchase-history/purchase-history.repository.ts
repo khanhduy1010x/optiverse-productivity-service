@@ -108,4 +108,23 @@ export class PurchaseHistoryRepository {
       marketplace_item_id: new Types.ObjectId(marketplaceItemId),
     });
   }
+
+  /**
+   * Count purchases made by buyer in current month
+   * @param buyerId - Buyer user ID
+   * @returns Count of purchases made in current month
+   */
+  async countMonthlyPurchasesByBuyer(buyerId: string): Promise<number> {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+
+    return await this.purchaseHistoryModel.countDocuments({
+      buyer_id: new Types.ObjectId(buyerId),
+      purchased_at: {
+        $gte: startOfMonth,
+        $lte: endOfMonth,
+      },
+    });
+  }
 }

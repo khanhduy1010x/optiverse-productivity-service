@@ -137,11 +137,14 @@ export class MarketplaceItemController {
     @Body() purchaseDto: PurchaseMarketplaceItemDto,
   ): Promise<ApiResponseWrapper<PurchaseResponseDto>> {
     const userId = req.userInfo?.userId;
+    const hasActiveMembership = req.userInfo?.membership.hasActiveMembership;
+    const level = hasActiveMembership ? req.userInfo?.membership.level : -1;
+    
     if (!userId) {
       throw new AppException(ErrorCode.UNAUTHENTICATED);
     }
 
-    const result = await this.marketplaceItemService.purchase(userId, purchaseDto);
+    const result = await this.marketplaceItemService.purchase(userId, level, purchaseDto);
     return new ApiResponseWrapper(result);
   }
 }
