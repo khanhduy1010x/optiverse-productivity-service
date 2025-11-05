@@ -45,4 +45,7 @@ export class PurchaseHistoryService {
   async countMonthlyPurchases(userId: string): Promise<number> {
     return await this.repo.countMonthlyPurchasesByBuyer(userId);
   }
+  async getSalesAnalytics(sellerId: string) {
+    return await this.repo.getSalesAnalytics(sellerId);
+  }
 }

@@ -127,4 +127,82 @@ export class PurchaseHistoryRepository {
       },
     });
   }
+  async getSalesAnalytics(sellerId: string) {
+    const sellerObjectId = new Types.ObjectId(sellerId);
+
+    // Aggregate total revenue and sales count
+    const totalStats = await this.purchaseHistoryModel.aggregate([
+      { $match: { seller_id: sellerObjectId } },
+      {
+        $group: {
+          _id: null,
+          totalRevenue: { $sum: '$price' },
+          totalSales: { $sum: 1 },
+        },
+      },
+    ]);
+
+    // Aggregate sales by month (last 12 months)
+    const twelveMonthsAgo = new Date();
+    twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
+
+    const salesByMonth = await this.purchaseHistoryModel.aggregate([
+      {
+        $match: {
+          seller_id: sellerObjectId,
+          purchased_at: { $gte: twelveMonthsAgo },
+        },
+      },
+      {
+        $group: {
+          _id: {
+            year: { $year: '$purchased_at' },
+            month: { $month: '$purchased_at' },
+          },
+          revenue: { $sum: '$price' },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { '_id.year': 1, '_id.month': 1 } },
+    ]);
+
+    // Aggregate top selling items (top 10)
+    const topSellingItems = await this.purchaseHistoryModel.aggregate([
+      { $match: { seller_id: sellerObjectId } },
+      {
+        $group: {
+          _id: '$marketplace_item_id',
+          totalRevenue: { $sum: '$price' },
+          totalSales: { $sum: 1 },
+        },
+      },
+      { $sort: { totalSales: -1 } },
+      { $limit: 10 },
+      {
+        $lookup: {
+          from: 'marketplace_items',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'item',
+        },
+      },
+      { $unwind: '$item' },
+      {
+        $project: {
+          _id: 1,
+          totalRevenue: 1,
+          totalSales: 1,
+          title: '$item.title',
+          price: '$item.price',
+        },
+      },
+    ]);
+
+    return {
+      totalRevenue: totalStats[0]?.totalRevenue || 0,
+      totalSales: totalStats[0]?.totalSales || 0,
+      salesByMonth,
+      topSellingItems,
+    };
+  }
 }
