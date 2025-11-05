@@ -36,4 +36,13 @@ export class PurchaseHistoryService {
   async countPurchasesByMarketplaceItem(marketplaceItemId: string): Promise<number> {
     return await this.repo.countByMarketplaceItem(marketplaceItemId);
   }
+
+  /**
+   * Count user's purchases in current month
+   * @param userId - Buyer user ID
+   * @returns Count of purchases made in current month
+   */
+  async countMonthlyPurchases(userId: string): Promise<number> {
+    return await this.repo.countMonthlyPurchasesByBuyer(userId);
+  }
 }

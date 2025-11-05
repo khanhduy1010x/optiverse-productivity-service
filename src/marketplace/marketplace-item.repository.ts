@@ -114,4 +114,27 @@ export class MarketplaceItemRepository {
     });
     return await newFlashcard.save();
   }
+
+  /**
+   * Count user's marketplace listings in current month
+   * @param userId - User ID
+   * @returns Count of listings created in current month
+   */
+  async countUserMonthlyListings(userId: string): Promise<number> {
+    if (!Types.ObjectId.isValid(userId)) {
+      return 0;
+    }
+
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+
+    return this.marketplaceItemModel.countDocuments({
+      creator_id: new Types.ObjectId(userId),
+      createdAt: {
+        $gte: startOfMonth,
+        $lte: endOfMonth,
+      },
+    }).exec();
+  }
 }

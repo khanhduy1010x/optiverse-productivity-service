@@ -66,6 +66,7 @@ export enum ErrorCode {
   ROOM_USER_NOT_AUTHENTICATED,
   DUPLICATE_RATING,
   RATING_NOT_FOUND,
+  MARKETPLACE_BUY_LIMIT_EXCEEDED,
 }
 export const ErrorDetails = {
   [ErrorCode.INVALID_CODE]: {
@@ -376,5 +377,10 @@ export const ErrorDetails = {
     code: 1212,
     message: 'Rating not found',
     httpStatus: HttpStatus.NOT_FOUND,
+  },
+  [ErrorCode.MARKETPLACE_BUY_LIMIT_EXCEEDED]: {
+    code: 1213,
+    message: 'You need to upgrade your package to be able to buy more',
+    httpStatus: HttpStatus.BAD_REQUEST,
   },
 };

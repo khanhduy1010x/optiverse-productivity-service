@@ -26,6 +26,23 @@ export class RatingStatsDto {
   ratingDistribution: Record<number, number>;
 }
 
+export class MarketplaceItemPricingDto {
+  @ApiProperty({ description: 'Giá gốc (không có discount)' })
+  original_price: number;
+
+  @ApiProperty({ description: 'Phần trăm discount từ membership (0-0.3)', required: true })
+  discount_percentage: number;
+
+  @ApiProperty({ description: 'Số tiền được giảm' })
+  discount_amount: number;
+
+  @ApiProperty({ description: 'Giá cuối cùng sau discount' })
+  final_price: number;
+
+  @ApiProperty({ description: 'Tên membership tier của user' })
+  membership_tier?: string;
+}
+
 export class MarketplaceItemResponseDto {
   @ApiProperty({ description: 'ID của item' })
   _id: string;
@@ -47,6 +64,9 @@ export class MarketplaceItemResponseDto {
 
   @ApiProperty({ description: 'Giá bán' })
   price: number;
+
+  @ApiProperty({ description: 'Thông tin giá và discount (nếu user có membership)', type: MarketplaceItemPricingDto, required: false })
+  pricing?: MarketplaceItemPricingDto;
 
   @ApiProperty({ description: 'Loại sản phẩm', enum: MarketplaceItemType })
   type: MarketplaceItemType;
