@@ -59,12 +59,20 @@ export class WorkspacePermissionService {
 
   /**
    * Kiểm tra user có quyền cụ thể không
+   * Nếu user là chủ workspace thì luôn true
    */
   async hasPermission(
     workspaceId: string,
     userId: string,
     action: string,
   ): Promise<boolean> {
+    // Check if user is workspace owner
+    const isOwner = await this.isWorkspaceOwner(workspaceId, userId);
+    if (isOwner) {
+      return true;
+    }
+
+    // Check if user has the specific action
     const permission = await this.getUserPermissions(workspaceId, userId);
     return permission ? permission.actions.includes(action) : false;
   }

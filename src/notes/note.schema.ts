@@ -24,6 +24,9 @@ export class Note {
 
   @Prop({ required: false, type: Types.ObjectId, ref: 'LiveRoom' })
   live_room_id?: Types.ObjectId;
+
+  @Prop({ required: false, type: Types.ObjectId })
+  workspace_id?: Types.ObjectId;
 }
 
 export const NoteSchema = SchemaFactory.createForClass(Note);

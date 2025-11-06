@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Workspace, WorkspaceSchema } from './workspace.schema';
 import {
@@ -20,6 +20,7 @@ import { PermissionService } from './permission.service';
 import { WorkspacePermissionService } from './workspace-permission.service';
 import { UserHttpClient } from 'src/http-axios/user-http.client';
 import { WorkspaceWebSocketGateway } from './workspace-websocket.gateway';
+import { WorkspaceNoteModule } from '../notes/workpsace/workspace-note.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { WorkspaceWebSocketGateway } from './workspace-websocket.gateway';
       { name: WorkspaceJoinRequest.name, schema: WorkspaceJoinRequestSchema },
       { name: WorkspacePermission.name, schema: WorkspacePermissionSchema },
     ]),
+    forwardRef(() => WorkspaceNoteModule),
   ],
   controllers: [WorkspaceController],
   providers: [
