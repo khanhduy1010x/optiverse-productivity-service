@@ -87,6 +87,15 @@ export class PaymentRepository {
       .exec();
   }
 
+  async savePayOSResponse(
+    id: string | Types.ObjectId,
+    payOSResponse: any,
+  ): Promise<Payment | null> {
+    return this.paymentModel
+      .findByIdAndUpdate(id, { payOSResponse }, { new: true })
+      .exec();
+  }
+
   async saveWebhookData(
     id: string | Types.ObjectId,
     webhookData: any,

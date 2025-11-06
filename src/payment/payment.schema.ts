@@ -57,6 +57,9 @@ export class Payment {
   momoResponse?: Record<string, any>;
 
   @Prop({ type: Object })
+  payOSResponse?: Record<string, any>;
+
+  @Prop({ type: Object })
   webhookData?: Record<string, any>;
 
   createdAt?: Date;

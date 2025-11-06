@@ -113,7 +113,6 @@ export class PaymentService {
         throw new BadRequestException(`MoMo API error: ${momoData.message}`);
       }
 
-      console.log('Momo Data:', momoData);
       await this.paymentRepository.saveMomoResponse(
         (payment as any)._id,
         momoData,
@@ -143,10 +142,104 @@ export class PaymentService {
     }
   }
 
-  /**
-   * 2️⃣ POST /membership/momo/ipn
-   * Nhận callback từ MoMo và xác thực chữ ký
-   */
+  async createPayOSPayment(userId: string, packageId: string) {
+    try {
+      if (!userId || !packageId) {
+        throw new BadRequestException('Invalid userId or packageId');
+      }
+
+      const packageInfo =
+        await this.userHttpClient.getMembershipPackageById(packageId);
+      const amount = packageInfo.data?.price || packageInfo.price;
+
+      if (!amount || amount <= 0) {
+        throw new BadRequestException('Invalid package price');
+      }
+
+      const orderCode = Math.floor(Math.random() * 1000000);
+      const requestId = uuidv4();
+
+      const payment = await this.paymentRepository.create({
+        orderId: orderCode.toString(),
+        requestId,
+        userId: new Types.ObjectId(userId),
+        packageId: new Types.ObjectId(packageId),
+        amount,
+        status: 'pending',
+        paymentMethod: 'QR',
+        isProcessed: false,
+        message: `Membership payment for package ${packageId}`,
+      });
+
+      const clientId = this.configService.get('CLIENT_ID_PAYOS');
+      const apiKey = this.configService.get('API_KEY_PAYOS');
+      const checkSumKey = this.configService.get('CHECK_SUM_KEY_PAYOS');
+      const redirectUrl = this.configService.get('REDIRECT_PAYOS_URL');
+
+      if (!clientId || !apiKey || !checkSumKey || !redirectUrl) {
+        throw new InternalServerErrorException(
+          'PayOS configuration is missing',
+        );
+      }
+      const cancelUrl = redirectUrl + 'payment-cancel.html';
+      const returnUrl = redirectUrl + 'payment-result.html';
+      const description = 'MMP PAYOS';
+      const dataToSign = `amount=${amount}&cancelUrl=${cancelUrl}&description=${description}&orderCode=${orderCode}&returnUrl=${returnUrl}`;
+
+      const signature = crypto
+        .createHmac('sha256', checkSumKey)
+        .update(dataToSign, 'utf8')
+        .digest('hex');
+
+      const payOSPayload = {
+        orderCode,
+        amount,
+        description,
+        cancelUrl,
+        returnUrl,
+        expiredAt: Math.floor(Date.now() / 1000) + 10 * 60,
+        signature,
+      };
+
+      const payOSApiUrl = 'https://api-merchant.payos.vn/v2/payment-requests';
+
+      const payOSRes = await axios.post<any>(payOSApiUrl, payOSPayload, {
+        headers: {
+          'x-client-id': clientId,
+          'x-api-key': apiKey,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const payOSData = payOSRes.data as any;
+
+      if (payOSData.code !== '00') {
+        this.logger.error(`PayOS API error: ${payOSData.message}`, payOSData);
+        throw new BadRequestException(`PayOS API error: ${payOSData.message}`);
+      }
+
+      await this.paymentRepository.savePayOSResponse(
+        (payment as any)._id,
+        payOSData,
+      );
+
+      return {
+        checkoutUrl: payOSData.data?.checkoutUrl,
+        orderId: orderCode.toString(),
+        requestId,
+        orderCode,
+        code: payOSData.code,
+        message: payOSData.message,
+      };
+    } catch (error: any) {
+      this.logger.error(
+        `❌ Error creating PayOS payment: ${error.message}`,
+        error.stack,
+      );
+      throw error;
+    }
+  }
+
   async handleMomoIPN(ipnData: any) {
     try {
       this.logger.debug(`Received IPN data: ${JSON.stringify(ipnData)}`);
@@ -183,7 +276,6 @@ export class PaymentService {
         return { resultCode: 1, message: 'Invalid signature' };
       }
 
-      // ✅ 2️⃣ Các bước xử lý sau khi xác thực
       const payment = await this.paymentRepository.findByOrderId(
         ipnData.orderId,
       );
@@ -219,24 +311,124 @@ export class PaymentService {
     }
   }
 
+  async handlePayOSWebhook(webhookBody: any) {
+    try {
+      this.logger.debug(
+        `Received PayOS Webhook: ${JSON.stringify(webhookBody)}`,
+      );
+
+      const checkSumKey = this.configService.get('CHECK_SUM_KEY_PAYOS');
+
+      if (!checkSumKey) {
+        throw new InternalServerErrorException('PayOS checksum key is missing');
+      }
+
+      const data = webhookBody.data || {};
+      const signature = webhookBody.signature;
+
+      // Verify signature using PayOS method: sort by key and convert to query string
+      const sortedData = this.sortObjDataByKey(data);
+      const dataQueryStr = this.convertObjToQueryStr(sortedData);
+      const calculatedSignature = crypto
+        .createHmac('sha256', checkSumKey)
+        .update(dataQueryStr)
+        .digest('hex');
+
+      if (signature !== calculatedSignature) {
+        this.logger.warn(
+          `Invalid PayOS signature for orderCode: ${data.orderCode}. Expected: ${calculatedSignature}, Got: ${signature}`,
+        );
+        return { resultCode: 1, message: 'Invalid signature' };
+      }
+
+      const orderCode = data.orderCode?.toString();
+      const payment = await this.paymentRepository.findByOrderId(orderCode);
+
+      if (!payment || payment == null) {
+        this.logger.warn(`Payment not found for orderCode: ${orderCode}`);
+        return { resultCode: 1, message: 'Payment not found' };
+      }
+
+      if (payment.isProcessed) {
+        this.logger.log(
+          `Payment already processed for orderCode: ${orderCode}`,
+        );
+        return { resultCode: 0, message: 'Payment already processed' };
+      }
+
+      await this.paymentRepository.saveWebhookData(payment._id, webhookBody);
+
+      const isSuccess =
+        webhookBody.code === '00' && webhookBody.success === true;
+      const status = isSuccess ? 'paid' : 'failed';
+
+      const updatedPayment = await this.paymentRepository.updateStatus(
+        payment._id,
+        status,
+        {
+          transactionId: data.reference?.toString(),
+          isProcessed: true,
+        },
+      );
+
+      if (status === 'paid') {
+        await this.handlePaymentSuccess(updatedPayment);
+      }
+
+      return { resultCode: 0, message: 'Success' };
+    } catch (error) {
+      this.logger.error(`Error handling PayOS webhook:`, error);
+      return { resultCode: 99, message: 'Internal server error' };
+    }
+  }
+
   /**
-   * 3️⃣ Xử lý logic sau khi thanh toán thành công
-   * Cấp quyền membership cho user, add OP credits, etc
+   * Helper: Sort object by keys (for PayOS signature verification)
    */
+  private sortObjDataByKey(object: any): any {
+    const orderedObject = Object.keys(object)
+      .sort()
+      .reduce((obj: any, key: string) => {
+        obj[key] = object[key];
+        return obj;
+      }, {});
+    return orderedObject;
+  }
+
+  /**
+   * Helper: Convert object to query string (for PayOS signature verification)
+   */
+  private convertObjToQueryStr(object: any): string {
+    return Object.keys(object)
+      .filter((key) => object[key] !== undefined)
+      .map((key) => {
+        let value = object[key];
+        // Sort nested object
+        if (value && Array.isArray(value)) {
+          value = JSON.stringify(
+            value.map((val: any) => this.sortObjDataByKey(val)),
+          );
+        }
+        // Set empty string if null
+        if ([null, undefined, 'undefined', 'null'].includes(value)) {
+          value = '';
+        }
+        return `${key}=${value}`;
+      })
+      .join('&');
+  }
+
   private async handlePaymentSuccess(payment: any) {
     try {
-      // Update user membership and get package info at the same time
       const membershipResponse = await this.userHttpClient.updateUserMembership(
         payment.userId.toString(),
         payment.packageId.toString(),
       );
       this.logger.log(`Payment success handler for payment: ${payment._id}`);
 
-      // Extract package info from response to add OP credits
       try {
         let packageData = membershipResponse?.data?.package;
 
-        // If package data not in response, fetch it separately
         if (!packageData) {
           const packageInfo =
             await this.userHttpClient.getMembershipPackageById(
@@ -248,7 +440,6 @@ export class PaymentService {
         const opBonusCredits =
           packageData?.opBonusCredits || packageData?.op_bonus_credits || 0;
 
-        // Add OP credits to user inventory
         if (opBonusCredits > 0) {
           await this.userInventoryService.addOpCredits(
             payment.userId.toString(),
@@ -263,23 +454,81 @@ export class PaymentService {
           `Error adding OP credits to user inventory:`,
           opError,
         );
-        // Don't throw - OP addition failure shouldn't fail the payment success
       }
     } catch (error) {
       this.logger.error(`Error in payment success handler:`, error);
     }
   }
 
-  /**
-   * Lấy lịch sử thanh toán của user
-   */
   async getUserPaymentHistory(userId: string, limit = 10, skip = 0) {
-    return this.paymentRepository.findByUserId(userId, limit, skip);
+    const payments = await this.paymentRepository.findByUserId(
+      userId,
+      limit,
+      skip,
+    );
+
+    // Populate package info and user info
+    const enrichedPayments = await Promise.all(
+      payments.map(async (payment: any) => {
+        try {
+          // Get package info
+          const packageInfo =
+            await this.userHttpClient.getMembershipPackageById(
+              payment.packageId.toString(),
+            );
+          const packageData = packageInfo.data || packageInfo;
+
+          return {
+            _id: payment._id,
+            orderId: payment.orderId,
+            requestId: payment.requestId,
+            amount: payment.amount,
+            status: payment.status,
+            paymentMethod: payment.paymentMethod,
+            transactionId: payment.transactionId,
+            createdAt: payment.createdAt,
+            updatedAt: payment.updatedAt,
+            paidAt: payment.paidAt,
+            expiresAt: payment.expiresAt,
+            // Package info
+            package: {
+              _id: packageData._id || packageData.id,
+              name: packageData.name,
+              level: packageData.level,
+              price: packageData.price,
+              opBonusCredits:
+                packageData.opBonusCredits || packageData.op_bonus_credits,
+              duration_days:
+                packageData.duration_days || packageData.durationDays,
+            },
+          };
+        } catch (error) {
+          this.logger.warn(
+            `Failed to populate package info for payment ${payment._id}:`,
+            error,
+          );
+          // Return basic info if package lookup fails
+          return {
+            _id: payment._id,
+            orderId: payment.orderId,
+            requestId: payment.requestId,
+            amount: payment.amount,
+            status: payment.status,
+            paymentMethod: payment.paymentMethod,
+            transactionId: payment.transactionId,
+            createdAt: payment.createdAt,
+            updatedAt: payment.updatedAt,
+            paidAt: payment.paidAt,
+            expiresAt: payment.expiresAt,
+            package: null,
+          };
+        }
+      }),
+    );
+
+    return enrichedPayments;
   }
 
-  /**
-   * Lấy chi tiết payment
-   */
   async getPaymentDetail(paymentId: string) {
     const payment = await this.paymentRepository.findById(paymentId);
     if (!payment) {
@@ -288,9 +537,6 @@ export class PaymentService {
     return payment;
   }
 
-  /**
-   * Lấy payment by orderId
-   */
   async getPaymentByOrderId(orderId: string) {
     const payment = await this.paymentRepository.findByOrderId(orderId);
     if (!payment) {
@@ -299,9 +545,6 @@ export class PaymentService {
     return payment;
   }
 
-  /**
-   * Retry thanh toán (user click "Thử lại")
-   */
   async retryPayment(orderId: string) {
     const payment = await this.paymentRepository.findByOrderId(orderId);
     if (!payment) {
@@ -314,7 +557,6 @@ export class PaymentService {
       );
     }
 
-    // Reset payment record
     await this.paymentRepository.updateStatus((payment as any)._id, 'pending', {
       isProcessed: false,
       transactionId: undefined,
@@ -322,30 +564,20 @@ export class PaymentService {
       expiresAt: new Date(Date.now() + 30 * 60 * 1000),
     });
 
-    // Retry create MoMo payment
     return this.createMomoPayment(
       payment.userId.toString(),
       payment.packageId.toString(),
     );
   }
 
-  /**
-   * Admin: Lấy tất cả pending payments
-   */
   async getPendingPayments() {
     return this.paymentRepository.findPending();
   }
 
-  /**
-   * Admin: Lấy tất cả expired payments
-   */
   async getExpiredPayments() {
     return this.paymentRepository.findExpired();
   }
 
-  /**
-   * Admin: Manually mark payment as paid (for testing)
-   */
   async manualMarkAsPaid(paymentId: string, transactionId?: string) {
     return this.paymentRepository.updateStatus(paymentId, 'paid', {
       transactionId,
@@ -353,9 +585,6 @@ export class PaymentService {
     });
   }
 
-  /**
-   * Get package info by list of package IDs
-   */
   async getPackageInfoByIds(packageIds: string[]) {
     return this.userHttpClient.getMembershipPackagesByIds(packageIds);
   }

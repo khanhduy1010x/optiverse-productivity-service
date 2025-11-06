@@ -40,6 +40,27 @@ export class PaymentController {
   }
 
   /**
+   * 1️⃣ POST /membership/pay-payos
+   * Tạo yêu cầu thanh toán tới PayOS
+   * Body: { packageId }
+   * Return: { checkoutUrl, orderId, requestId }
+   */
+  @Post('pay-payos')
+  @HttpCode(200)
+  async createPayOSPayment(
+    @Body() body: { packageId: string },
+    @Req() req: any,
+  ) {
+    const user = req.userInfo as UserDto;
+    this.logger.log(`Creating PayOS payment for user: ${user.userId}`);
+    const result = await this.paymentService.createPayOSPayment(
+      user.userId,
+      body.packageId,
+    );
+    return new ApiResponse<any>(result);
+  }
+
+  /**
    * 2️⃣ POST /membership/momo/ipn
    * Nhận callback từ MoMo
    * Không cần auth vì MoMo gọi từ server ngoài
@@ -49,6 +70,19 @@ export class PaymentController {
   async handleMomoIPN(@Body() ipnData: any) {
     this.logger.log(`Received MoMo IPN for order: ${ipnData.orderId}`);
     return this.paymentService.handleMomoIPN(ipnData);
+  }
+
+  /**
+   * 2️⃣ POST /membership/payos/webhook
+   * Nhận callback từ PayOS
+   * Không cần auth vì PayOS gọi từ server ngoài
+   */
+  @Post('public/payos/webhook')
+  @HttpCode(200)
+  async handlePayOSWebhook(@Body() body: any) {
+    this.logger.log(`Received PayOS Webhook`);
+    console.log('PayOS Webhook Request Body:', JSON.stringify(body, null, 2));
+    return this.paymentService.handlePayOSWebhook(body);
   }
 
   /**
@@ -64,49 +98,20 @@ export class PaymentController {
     const userId = user.userId;
     const limit = query?.limit || 10;
     const skip = query?.skip || 0;
-    const payments = await this.paymentService.getUserPaymentHistory(
-      userId,
-      limit,
-      skip,
-    );
 
-    const packageIds = Array.from(
-      new Set(
-        payments
-          .filter((p: any) => p.status === 'paid' && p.webhookData?.orderInfo)
-          .map((p: any) => p.packageId.toString()),
-      ),
-    );
-    console.log('Fetched package IDs from payments:', packageIds);
-    let packagesMap = {};
-    if (packageIds.length > 0) {
-      const packages =
-        await this.paymentService.getPackageInfoByIds(packageIds);
-      console.log('Fetched packages:', packages);
-      packagesMap = packages.reduce((acc: any, pkg: any) => {
-        acc[pkg._id.toString()] = pkg;
+    try {
+      const payments = await this.paymentService.getUserPaymentHistory(
+        userId,
+        limit,
+        skip,
+      );
 
-        return acc;
-      }, {});
+      // Service already populates package info, just return it
+      return new ApiResponse<any>(payments);
+    } catch (error: any) {
+      this.logger.error(`Error fetching payment history: ${error.message}`);
+      throw error;
     }
-
-    console.log('Packages map:', packagesMap);
-    // Enrich payments with package info
-    const enrichedPayments = payments.map((payment: any) => {
-      const pkgId = payment.packageId.toString();
-      const packageInfo = packagesMap[pkgId] || {};
-
-      const result = {
-        packageId: payment.packageId,
-        amount: payment.amount,
-        status: payment.status,
-        ...packageInfo,
-      };
-
-      return result;
-    });
-
-    return new ApiResponse<any>(enrichedPayments);
   }
 
   /**
