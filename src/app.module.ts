@@ -33,7 +33,11 @@ import { MarketplaceFavoriteModule } from './marketplace-favorites/marketplace-f
 import { LiveRoomModule } from './focus-room/live-room.module';
 import { WebhookModule } from './focus-room/webhook.module';
 import { SpeechModule } from './speech/speech.module';
+<<<<<<< HEAD
 import { PaymentModule } from './payment/payment.module';
+=======
+import { LeaderboardModule } from './leaderboard/leaderboard.module';
+>>>>>>> 1fbf60f ( OPTV-40: leaderbroad)
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -73,7 +77,11 @@ import { PaymentModule } from './payment/payment.module';
     MarketplaceFavoriteModule,
     LiveRoomModule,
     SpeechModule,
+<<<<<<< HEAD
     PaymentModule,
+=======
+    LeaderboardModule,
+>>>>>>> 1fbf60f ( OPTV-40: leaderbroad)
   ],
   controllers: [AppController],
   providers: [
