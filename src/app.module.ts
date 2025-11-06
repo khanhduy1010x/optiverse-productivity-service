@@ -34,6 +34,7 @@ import { LiveRoomModule } from './focus-room/live-room.module';
 import { WebhookModule } from './focus-room/webhook.module';
 import { SpeechModule } from './speech/speech.module';
 import { PaymentModule } from './payment/payment.module';
+import { LeaderboardModule } from './leaderboard/leaderboard.module';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -74,6 +75,7 @@ import { PaymentModule } from './payment/payment.module';
     LiveRoomModule,
     SpeechModule,
     PaymentModule,
+    LeaderboardModule,
   ],
   controllers: [AppController],
   providers: [
