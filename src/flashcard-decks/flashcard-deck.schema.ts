@@ -10,6 +10,9 @@ export class FlashcardDeck {
   @Prop({ required: true, type: Types.ObjectId, ref: 'User' })
   user_id: Types.ObjectId;
 
+  @Prop({ type: Types.ObjectId, ref: 'Workspace' })
+  workspace_id?: Types.ObjectId;
+
   @Prop({ required: true })
   title: string;
 
