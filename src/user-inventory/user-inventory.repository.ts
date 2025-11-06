@@ -1,12 +1,18 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { UserInventory, UserInventoryDocument, Frame, FrameDocument } from './user-inventory.schema';
+import {
+  UserInventory,
+  UserInventoryDocument,
+  Frame,
+  FrameDocument,
+} from './user-inventory.schema';
 
 @Injectable()
 export class UserInventoryRepository {
   constructor(
-    @InjectModel(UserInventory.name) private readonly userInventoryModel: Model<UserInventoryDocument>,
+    @InjectModel(UserInventory.name)
+    private readonly userInventoryModel: Model<UserInventoryDocument>,
     @InjectModel(Frame.name) private readonly frameModel: Model<FrameDocument>,
   ) {}
 
@@ -47,10 +53,12 @@ export class UserInventoryRepository {
 
   async addReward(userId: string, rewardValue: string): Promise<UserInventory> {
     // Tìm xem đã có record điểm chưa (op là số điểm hiện có)
-    const existingRecord = await this.userInventoryModel.findOne({
-      user_id: userId,
-      op: { $regex: /^\d+$/ } // Tìm record có op là số
-    }).exec();
+    const existingRecord = await this.userInventoryModel
+      .findOne({
+        user_id: userId,
+        op: { $regex: /^\d+$/ }, // Tìm record có op là số
+      })
+      .exec();
 
     if (existingRecord) {
       // Nếu đã có, cộng thêm điểm vào op
@@ -63,42 +71,55 @@ export class UserInventoryRepository {
     } else {
       const newRecord = new this.userInventoryModel({
         user_id: userId,
-        op: rewardValue, 
+        op: rewardValue,
       });
       return newRecord.save();
     }
   }
 
-  async getUserFrames(userId: string): Promise<{ frames: Frame[]; activeFrame?: string; userPoints: number }> {
+  async getUserFrames(
+    userId: string,
+  ): Promise<{ frames: Frame[]; activeFrame?: string; userPoints: number }> {
     // Tìm user inventory
-    const userInventory = await this.userInventoryModel.findOne({
-      user_id: userId,
-      op: { $regex: /^\d+$/ } // Tìm record có op là số điểm
-    }).exec();
+    const userInventory = await this.userInventoryModel
+      .findOne({
+        user_id: userId,
+        op: { $regex: /^\d+$/ }, // Tìm record có op là số điểm
+      })
+      .exec();
 
     if (!userInventory) {
       return { frames: [], userPoints: 0 };
     }
 
     // Lấy danh sách frame IDs mà user sở hữu
-    const frameIds = userInventory.frame.filter(frameId => frameId.length === 24); // Filter valid ObjectIds
-    
+    const frameIds = userInventory.frame.filter(
+      (frameId) => frameId.length === 24,
+    ); // Filter valid ObjectIds
+
     // Lấy thông tin chi tiết của các frame
-    const frames = await this.frameModel.find({ _id: { $in: frameIds } }).exec();
+    const frames = await this.frameModel
+      .find({ _id: { $in: frameIds } })
+      .exec();
 
     return {
       frames,
       activeFrame: userInventory.active_frame,
-      userPoints: parseInt(userInventory.op)
+      userPoints: parseInt(userInventory.op),
     };
   }
 
-  async setActiveFrame(userId: string, frameId: string): Promise<{ success: boolean; message: string }> {
+  async setActiveFrame(
+    userId: string,
+    frameId: string,
+  ): Promise<{ success: boolean; message: string }> {
     // Tìm user inventory
-    const userInventory = await this.userInventoryModel.findOne({
-      user_id: userId,
-      op: { $regex: /^\d+$/ }
-    }).exec();
+    const userInventory = await this.userInventoryModel
+      .findOne({
+        user_id: userId,
+        op: { $regex: /^\d+$/ },
+      })
+      .exec();
 
     if (!userInventory) {
       return { success: false, message: 'User inventory không tồn tại' };
@@ -116,7 +137,14 @@ export class UserInventoryRepository {
     return { success: true, message: 'Đã cập nhật frame active thành công' };
   }
 
-  async exchangeFrame(userId: string, frameId: string): Promise<{ success: boolean; message: string; userInventory?: UserInventory }> {
+  async exchangeFrame(
+    userId: string,
+    frameId: string,
+  ): Promise<{
+    success: boolean;
+    message: string;
+    userInventory?: UserInventory;
+  }> {
     // Tìm frame để biết cost
     const frame = await this.frameModel.findById(frameId).exec();
     if (!frame) {
@@ -124,10 +152,12 @@ export class UserInventoryRepository {
     }
 
     // Tìm user inventory với điểm (op là số)
-    const userInventory = await this.userInventoryModel.findOne({
-      user_id: userId,
-      op: { $regex: /^\d+$/ } // Tìm record có op là số điểm
-    }).exec();
+    const userInventory = await this.userInventoryModel
+      .findOne({
+        user_id: userId,
+        op: { $regex: /^\d+$/ }, // Tìm record có op là số điểm
+      })
+      .exec();
 
     if (!userInventory) {
       return { success: false, message: 'Bạn không có điểm loại này' };
@@ -135,13 +165,19 @@ export class UserInventoryRepository {
 
     // Kiểm tra xem đã sở hữu frame này chưa
     if (userInventory.frame.includes(frameId)) {
-      return { success: false, message: `Bạn đã sở hữu frame "${frame.title}" rồi!` };
+      return {
+        success: false,
+        message: `Bạn đã sở hữu frame "${frame.title}" rồi!`,
+      };
     }
 
     // Kiểm tra đủ điểm không (số điểm = giá trị op)
     const currentPoints = parseInt(userInventory.op);
     if (currentPoints < frame.cost) {
-      return { success: false, message: `Không đủ điểm. Cần ${frame.cost} điểm, hiện có ${currentPoints} điểm` };
+      return {
+        success: false,
+        message: `Không đủ điểm. Cần ${frame.cost} điểm, hiện có ${currentPoints} điểm`,
+      };
     }
 
     // Trừ điểm bằng cách cập nhật giá trị op
@@ -154,10 +190,44 @@ export class UserInventoryRepository {
     // Lưu lại user inventory đã trừ điểm và thêm frame
     const updatedInventory = await userInventory.save();
 
-    return { 
-      success: true, 
+    return {
+      success: true,
       message: `Đổi frame "${frame.title}" thành công! Đã trừ ${frame.cost} điểm.`,
-      userInventory: updatedInventory
+      userInventory: updatedInventory,
     };
+  }
+
+  /**
+   * Add OP credits to user inventory
+   * If inventory exists, increment OP, otherwise create new
+   */
+  async addOpCredits(userId: string, amount: number): Promise<UserInventory> {
+    if (amount <= 0) {
+      throw new Error('Amount must be greater than 0');
+    }
+
+    // Try to find existing OP record
+    const existingRecord = await this.userInventoryModel
+      .findOne({
+        user_id: userId,
+        op: { $regex: /^\d+$/ }, // Find record with numeric OP
+      })
+      .exec();
+
+    if (existingRecord) {
+      // If exists, increment OP
+      const currentOp = parseInt(existingRecord.op);
+      existingRecord.op = (currentOp + amount).toString();
+      return existingRecord.save();
+    } else {
+      // If not exists, create new record
+      const newRecord = new this.userInventoryModel({
+        user_id: userId,
+        op: amount.toString(),
+        frame: [],
+        active_frame: null,
+      });
+      return newRecord.save();
+    }
   }
 }

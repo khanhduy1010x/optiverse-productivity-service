@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { AxiosClient } from './axios-client';
 
-// Define interface for user data from core service
 interface UserResponse {
   user_id: string;
   email: string;
@@ -9,7 +8,6 @@ interface UserResponse {
   avatar_url?: string;
 }
 
-// Define type for the API response wrapper structure
 interface ApiResponseWrapper<T> {
   success: boolean;
   data: T;
@@ -31,12 +29,33 @@ export class UserHttpClient {
       { userIds },
     );
 
-    // Check if response and data properties exist
     if (response?.data?.data) {
       return response.data.data;
     }
 
-    // Return empty array if no data
     return [];
+  }
+
+  async updateUserMembership(userId: string, packageId: string): Promise<any> {
+    const response = await this.client.post('user-memberships/update', {
+      userId,
+      packageId,
+    });
+    return response.data;
+  }
+
+  async getMembershipPackageById(packageId: string): Promise<any> {
+    const response = await this.client.get(
+      `membership-packages/by-id/${packageId}`,
+    );
+    return response.data;
+  }
+
+  async getMembershipPackagesByIds(packageIds: string[]): Promise<any[]> {
+    const response = await this.client.post<ApiResponseWrapper<any[]>>(
+      'membership-packages/by-ids',
+      { packageIds },
+    );
+    return response?.data?.data || [];
   }
 }

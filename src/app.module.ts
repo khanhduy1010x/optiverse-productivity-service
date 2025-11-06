@@ -33,6 +33,7 @@ import { MarketplaceFavoriteModule } from './marketplace-favorites/marketplace-f
 import { LiveRoomModule } from './focus-room/live-room.module';
 import { WebhookModule } from './focus-room/webhook.module';
 import { SpeechModule } from './speech/speech.module';
+import { PaymentModule } from './payment/payment.module';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -72,6 +73,7 @@ import { SpeechModule } from './speech/speech.module';
     MarketplaceFavoriteModule,
     LiveRoomModule,
     SpeechModule,
+    PaymentModule,
   ],
   controllers: [AppController],
   providers: [
