@@ -30,6 +30,31 @@ export class FlashcardDeckController {
     return new ApiResponse<any[]>(flashcardDecks);
   }
 
+  @Get('workspace/:workspaceId')
+  async getFlashcardDecksByWorkspaceID(
+    @Param('workspaceId') workspaceId: string,
+  ): Promise<ApiResponse<FlashcardDeck[]>> {
+    const flashcardDecks = await this.flashcardDeckService.getFlashcardDecksByWorkspaceID(workspaceId);
+    return new ApiResponse<any[]>(flashcardDecks);
+  }
+
+  @Get('workspace/:workspaceId/statistics')
+  async getStatisticsByWorkspaceID(
+    @Request() req,
+    @Param('workspaceId') workspaceId: string,
+  ): Promise<ApiResponse<any>> {
+    const user = req.userInfo as UserDto;
+
+    const basicStatistic = await this.flashcardDeckService.getStatisticsByWorkspaceID(workspaceId, user.userId);
+    const reviewsByDay = await this.flashcardDeckService.getReviewsByDayByWorkspace(workspaceId, user.userId);
+    const dueTodayPerDeck = await this.flashcardDeckService.getDueTodayPerDeckByWorkspace(workspaceId, user.userId);
+    return new ApiResponse<any>({
+      ...basicStatistic,
+      reviewsByDay,
+      dueTodayPerDeck
+    });
+  }
+
   @Get('statistics')
   async getStatisticsByUserID(@Request() req): Promise<ApiResponse<any>> {
     const user = req.userInfo as UserDto;

@@ -18,6 +18,10 @@ export class FlashcardDeckService {
     return await this.flashcardDeckRepository.getFlashcardDecksByUserID(userId);
   }
 
+  async getFlashcardDecksByWorkspaceID(workspaceId: string): Promise<FlashcardDeckResponse[]> {
+    return await this.flashcardDeckRepository.getFlashcardDecksByWorkspaceID(workspaceId);
+  }
+
   async getStatisticsByUserID(userId: string): Promise<any> {
     return await this.flashcardDeckRepository.getStatisticsByUserID(userId);
   }
@@ -87,5 +91,17 @@ export class FlashcardDeckService {
       });
     }
     return new FlashcardDeckResponse(newDeck);
+  }
+
+  async getStatisticsByWorkspaceID(workspaceId: string, userId: string): Promise<any> {
+    return await this.flashcardDeckRepository.getStatisticsByWorkspaceID(workspaceId, userId);
+  }
+
+  async getDueTodayPerDeckByWorkspace(workspaceId: string, userId: string): Promise<any> {
+    return await this.flashcardDeckRepository.getDueTodayPerDeckByWorkspace(workspaceId, userId);
+  }
+
+  async getReviewsByDayByWorkspace(workspaceId: string, userId: string): Promise<any> {
+    return await this.flashcardDeckRepository.getReviewsByDayByWorkspace(workspaceId, userId);
   }
 }
