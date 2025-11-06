@@ -10,6 +10,8 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { OnEvent } from '@nestjs/event-emitter';
+import { Inject, Logger } from '@nestjs/common';
+import { WorkspaceNoteService } from '../notes/workpsace/workspace-note.service';
 
 @WebSocketGateway({
   namespace: '/workspace',
@@ -21,7 +23,14 @@ import { OnEvent } from '@nestjs/event-emitter';
 export class WorkspaceWebSocketGateway
   implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
 {
+  private readonly logger = new Logger(WorkspaceWebSocketGateway.name);
+
   @WebSocketServer() server: Server;
+
+  constructor(
+    @Inject(WorkspaceNoteService)
+    private readonly workspaceNoteService: WorkspaceNoteService,
+  ) {}
 
   afterInit(server: Server) {
     console.log('Workspace WebSocket Gateway initialized');
@@ -102,6 +111,123 @@ export class WorkspaceWebSocketGateway
     }
 
     console.log(`Client left dashboard room ${dashboardRoom}`);
+  }
+
+  // ========== Note Room Handlers ==========
+
+  // User joins specific note room for real-time collaboration
+  @SubscribeMessage('join-note-room')
+  handleJoinNoteRoom(
+    @ConnectedSocket() client: Socket,
+    @MessageBody()
+    data: {
+      noteId: string;
+      workspaceId: string;
+      userId: string;
+      canEdit: boolean;
+    },
+  ) {
+    const noteRoomName = `note:${data.noteId}`;
+    client.join(noteRoomName);
+
+    // Store note info for this socket
+    client.data = {
+      ...client.data,
+      noteId: data.noteId,
+      canEdit: data.canEdit,
+    };
+
+    console.log(`User ${data.userId} joined note room ${noteRoomName}`, {
+      canEdit: data.canEdit,
+    });
+
+    // Notify others in room that user joined
+    this.server.to(noteRoomName).emit('user-joined-note', {
+      userId: data.userId,
+      noteId: data.noteId,
+      canEdit: data.canEdit,
+      timestamp: new Date(),
+    });
+
+    return { success: true, room: noteRoomName };
+  }
+
+  // User leaves specific note room
+  @SubscribeMessage('leave-note-room')
+  handleLeaveNoteRoom(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { noteId: string },
+  ) {
+    const noteRoomName = `note:${data.noteId}`;
+    client.leave(noteRoomName);
+
+    // Update client data
+    if (client.data) {
+      client.data.noteId = null;
+      client.data.canEdit = false;
+    }
+
+    console.log(`Client left note room ${noteRoomName}`);
+
+    // Notify others that user left
+    this.server.to(noteRoomName).emit('user-left-note', {
+      userId: client.data?.userId,
+      noteId: data.noteId,
+      timestamp: new Date(),
+    });
+  }
+
+  // Handle real-time note content updates
+  @SubscribeMessage('note-update')
+  async handleNoteUpdate(
+    @ConnectedSocket() client: Socket,
+    @MessageBody()
+    data: {
+      noteId: string;
+      workspaceId: string;
+      userId: string;
+      content: string;
+      updatedAt: Date;
+    },
+  ) {
+    try {
+      const noteRoomName = `note:${data.noteId}`;
+
+      // Save to database
+      await this.workspaceNoteService.updateNote(
+        data.workspaceId,
+        data.noteId,
+        data.userId,
+        {
+          content: data.content,
+        },
+      );
+
+      this.logger.log(
+        `Note saved to DB: ${data.noteId} by user ${data.userId}`,
+      );
+
+      // Broadcast update to all users in the note room EXCEPT sender
+      client.broadcast.to(noteRoomName).emit('note-updated', {
+        noteId: data.noteId,
+        workspaceId: data.workspaceId,
+        userId: data.userId,
+        content: data.content,
+        updatedAt: data.updatedAt,
+      });
+
+      console.log(`Note update emitted to room ${noteRoomName}`, {
+        noteId: data.noteId,
+        userId: data.userId,
+      });
+    } catch (error) {
+      this.logger.error(`Error updating note: ${error.message}`, error.stack);
+      // Send error back to client
+      client.emit('note-update-error', {
+        noteId: data.noteId,
+        error: error.message,
+      });
+    }
   }
 
   // ========== Event Listeners ==========

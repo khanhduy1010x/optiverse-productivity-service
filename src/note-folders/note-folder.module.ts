@@ -7,6 +7,7 @@ import { NoteFolderRepository } from './note-folder.repository';
 import { NoteModule } from '../notes/note.module';
 import { ShareRepository } from '../shares/share.repository';
 import { Share, ShareSchema } from '../shares/share.schema';
+import { WorkspaceFolderModule } from './workspace/workspace-folder.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { Share, ShareSchema } from '../shares/share.schema';
       { name: Share.name, schema: ShareSchema },
     ]),
     NoteModule,
+    WorkspaceFolderModule,
   ],
   controllers: [NoteFolderController],
   providers: [NoteFolderService, NoteFolderRepository, ShareRepository],

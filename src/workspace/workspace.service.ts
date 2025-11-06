@@ -403,13 +403,13 @@ export class WorkspaceService {
         role: membership.role,
         status: membership.status,
         joined_at: membership.joined_at,
-        locked: (membership.workspace_id as any).locked || false,
+        locked: (membership.workspace_id as any)?.locked || false,
         workspace: membership.workspace_id,
       };
 
       // Check if user is owner of this workspace
       // workspace_id is populated, so we can access owner_id
-      if ((membership.workspace_id as any).owner_id.toString() === userId) {
+      if ((membership.workspace_id as any)?.owner_id.toString() === userId) {
         owner_workspace.push(workspaceData);
       } else {
         member_workspace.push(workspaceData);

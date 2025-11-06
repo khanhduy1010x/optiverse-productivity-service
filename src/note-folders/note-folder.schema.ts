@@ -48,11 +48,14 @@ export class NoteFolder {
 
   @Prop({ type: Types.ObjectId, ref: 'NoteFolder' })
   parent_folder_id?: Types.ObjectId;
-  @Prop({ required: true, type: Types.ObjectId, ref: 'LiveRoom' })
+  @Prop({ required: false, type: Types.ObjectId, ref: 'LiveRoom' })
   live_room_id?: Types.ObjectId;
 
   @Prop({ required: true })
   name: string;
+
+  @Prop({ required: false, type: Types.ObjectId })
+  workspace_id?: Types.ObjectId;
 }
 
 export const NoteFolderSchema = SchemaFactory.createForClass(NoteFolder);

@@ -12,6 +12,7 @@ import {
   NoteFolder,
   NoteFolderSchema,
 } from '../note-folders/note-folder.schema';
+import { WorkspaceNoteModule } from './workpsace/workspace-note.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import {
       { name: Share.name, schema: ShareSchema },
       { name: NoteFolder.name, schema: NoteFolderSchema },
     ]),
+    WorkspaceNoteModule,
   ],
   controllers: [NoteController],
   providers: [

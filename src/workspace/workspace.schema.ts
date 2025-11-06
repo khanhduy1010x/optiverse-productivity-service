@@ -27,7 +27,7 @@ export class Workspace {
   member_count: number;
 
   @Prop({ type: Boolean, default: false })
-  locked: boolean;
+  locked?: boolean;
 
   createdAt?: Date;
   updatedAt?: Date;
