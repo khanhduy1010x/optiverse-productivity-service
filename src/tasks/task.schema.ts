@@ -27,6 +27,18 @@ export class Task {
 
   @Prop()
   end_time?: Date;
+
+  @Prop({ type: Date, default: () => new Date() })
+  created_at: Date;
+
+  @Prop({ type: Date, default: () => new Date() })
+  updated_at: Date;
+
+  @Prop({ type: Date, default: null })
+  deleted_at?: Date;
+
+  @Prop({ type: Date, default: () => new Date() })
+  created_date: Date; // Date only (for daily quota tracking - resets at midnight)
 }
 
 export const TaskSchema = SchemaFactory.createForClass(Task);
