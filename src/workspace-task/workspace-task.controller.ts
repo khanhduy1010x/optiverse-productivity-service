@@ -8,6 +8,8 @@ import {
   Body,
   Request,
   Logger,
+  HttpException,
+  HttpStatus,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Types } from 'mongoose';
@@ -20,6 +22,8 @@ import { WorkspaceTask } from './workspace-task.schema';
 import { AppException } from 'src/common/exceptions/app.exception';
 import { ErrorCode } from 'src/common/exceptions/error-code.enum';
 import { TaskRolePreset } from './task-permission.enum';
+import { WorkspaceRepository } from 'src/workspace/workspace.repository';
+import { MembershipHttpClient } from 'src/http-axios/membership-http.client';
 
 @ApiTags('workspace-task')
 @ApiBearerAuth('access-token')
@@ -27,7 +31,11 @@ import { TaskRolePreset } from './task-permission.enum';
 export class WorkspaceTaskController {
   private logger = new Logger('WorkspaceTaskController');
 
-  constructor(private readonly workspaceTaskService: WorkspaceTaskService) {}
+  constructor(
+    private readonly workspaceTaskService: WorkspaceTaskService,
+    private readonly workspaceRepository: WorkspaceRepository,
+    private readonly membershipHttpClient: MembershipHttpClient,
+  ) {}
 
   // ========== Task Endpoints ==========
   @Post('')
@@ -41,6 +49,64 @@ export class WorkspaceTaskController {
       this.logger.log(`[createTask] DTO:`, JSON.stringify(createTaskDto));
       
       const user = req.userInfo as UserDto;
+      
+      // Get workspace to retrieve owner_id
+      const workspace = await this.workspaceRepository.getWorkspaceById(workspaceId);
+      if (!workspace) {
+        throw new AppException(ErrorCode.NOT_FOUND);
+      }
+      
+      const ownerId = workspace.owner_id.toString();
+      this.logger.log(`[createTask] Workspace owner: ${ownerId}`);
+      
+      // Get owner's membership info from core service
+      // MAPPING:
+      //   hasActiveMembership: false → FREE (10/day limit)
+      //   hasActiveMembership: true:
+      //     level: 0 → BASIC (20/day limit)
+      //     level: 1 → PLUS (50/day limit)
+      //     level: 2 → BUSINESS (unlimited)
+      
+      // Step 1: Get membership level from core service
+      let ownerMembershipLevel = 0;
+      let ownerHasActiveMembership = false;
+      
+      try {
+        const membershipLevel = await this.membershipHttpClient.getUserMembershipLevel(ownerId);
+        this.logger.log(`[createTask] Owner membership level from core service: ${membershipLevel}`);
+        
+        // Parse membership level
+        if (membershipLevel !== undefined && membershipLevel !== null) {
+          if (typeof membershipLevel === 'string') {
+            ownerMembershipLevel = parseInt(membershipLevel, 10);
+          } else if (typeof membershipLevel === 'number') {
+            ownerMembershipLevel = membershipLevel;
+          }
+          
+          // If level is valid (0, 1, 2), user has active membership
+          if (Number.isInteger(ownerMembershipLevel) && ownerMembershipLevel >= 0 && ownerMembershipLevel <= 2) {
+            ownerHasActiveMembership = true;
+            this.logger.log(`[createTask] Owner has active membership - level: ${ownerMembershipLevel}`);
+          } else {
+            // Invalid level or -1 (FREE)
+            ownerHasActiveMembership = false;
+            ownerMembershipLevel = 0;
+            this.logger.log(`[createTask] Owner membership level invalid or -1 → FREE tier`);
+          }
+        } else {
+          // No membership data
+          ownerHasActiveMembership = false;
+          ownerMembershipLevel = 0;
+          this.logger.log(`[createTask] No membership data → FREE tier`);
+        }
+      } catch (error) {
+        this.logger.error(`[createTask] Error getting owner membership: ${error.message}`);
+        // Default to FREE on error
+        ownerHasActiveMembership = false;
+        ownerMembershipLevel = 0;
+      }
+      
+      this.logger.log(`[createTask] Final - ownerMembershipLevel: ${ownerMembershipLevel}, ownerHasActiveMembership: ${ownerHasActiveMembership}`);
       
       // Handle null or empty string assigned_to
       let assignedTo = createTaskDto.assigned_to;
@@ -56,12 +122,17 @@ export class WorkspaceTaskController {
         assignedTo,
         createTaskDto.end_time,
         createTaskDto.assigned_to_list,
+        ownerMembershipLevel,
+        ownerHasActiveMembership,
       );
       this.logger.log(`[createTask] Task created successfully:`, task._id);
       return new ApiResponse<WorkspaceTask>(task);
     } catch (error) {
       this.logger.error(`[createTask] Error: ${error.message}`, error.stack);
       if (error instanceof AppException) {
+        throw error;
+      }
+      if (error instanceof HttpException) {
         throw error;
       }
       throw new AppException(ErrorCode.SERVER_ERROR);

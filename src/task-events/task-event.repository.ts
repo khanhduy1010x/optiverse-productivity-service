@@ -70,4 +70,31 @@ export class TaskEventRepository {
   async getTaskEventsByUserID(userId: string): Promise<TaskEvent[]> {
     return await this.taskEventModel.find({ user_id: new Types.ObjectId(userId) }).exec();
   }
+
+  /**
+   * Get all upcoming task events within a time range
+   */
+  async getUpcomingTaskEvents(startTime: Date, endTime: Date): Promise<TaskEvent[]> {
+    return await this.taskEventModel
+      .find({
+        start_time: {
+          $gte: startTime,
+          $lte: endTime,
+        },
+        reminder_sent: { $ne: true }, // Only get events that haven't been sent reminder
+      })
+      .exec();
+  }
+
+  /**
+   * Mark reminder as sent for a task event
+   */
+  async markReminderSent(taskEventId: string): Promise<void> {
+    await this.taskEventModel
+      .findByIdAndUpdate(new Types.ObjectId(taskEventId), {
+        reminder_sent: true,
+        reminder_sent_at: new Date(),
+      })
+      .exec();
+  }
 }

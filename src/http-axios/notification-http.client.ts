@@ -53,4 +53,32 @@ export class NotificationHttpClient {
 
     return this.sendEmail(to, subject, content, ActionType.NOTE, userId);
   }
+
+  async sendTaskEventReminder(
+    to: string,
+    userId: string,
+    eventTitle: string,
+    startTime: string,
+    description?: string,
+    location?: string,
+    guests?: string,
+    actionUrl?: string,
+  ): Promise<any> {
+    try {
+      const response = await this.client.post('email/send-task-event-reminder', {
+        to,
+        userId,
+        eventTitle,
+        startTime,
+        description,
+        location,
+        guests,
+        actionUrl,
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error sending task event reminder:', error);
+      return null;
+    }
+  }
 }

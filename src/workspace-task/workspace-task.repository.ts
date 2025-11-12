@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { WorkspaceTask, WorkspaceTaskDocument } from './workspace-task.schema';
+import { WorkspaceTaskQuota } from './workspace-task-quota.schema';
 import { AppException } from 'src/common/exceptions/app.exception';
 import { ErrorCode } from 'src/common/exceptions/error-code.enum';
 
@@ -12,6 +13,8 @@ export class WorkspaceTaskRepository {
   constructor(
     @InjectModel(WorkspaceTask.name)
     private readonly workspaceTaskModel: Model<WorkspaceTaskDocument>,
+    @InjectModel(WorkspaceTaskQuota.name)
+    private readonly workspaceTaskQuotaModel: Model<WorkspaceTaskQuota>,
   ) {}
 
   // ========== Task CRUD Operations ==========
@@ -231,4 +234,98 @@ export class WorkspaceTaskRepository {
     }
     return await this.updateTask(taskId, updateData);
   }
+
+  /**
+   * Đếm số workspace task được tạo hôm nay trong một workspace (dựa trên quota tracking)
+   * Dùng để check membership limit theo owner của workspace
+   * @param workspaceId - ID của workspace
+   * @returns Số lượng task đã tạo hôm nay trong workspace đó
+   */
+  async countWorkspaceTasksCreatedToday(workspaceId: string): Promise<number> {
+    // Get today's date in UTC (00:00:00 UTC)
+    const now = new Date();
+    const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
+    
+    // Get tomorrow's date in UTC
+    const tomorrow = new Date(today);
+    tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+
+    console.log(`[countWorkspaceTasksCreatedToday] Looking for quota between ${today.toISOString()} and ${tomorrow.toISOString()}`);
+    console.log(`[countWorkspaceTasksCreatedToday] workspaceId: ${workspaceId}`);
+
+    // Query with date range - handles both UTC and local timezone stored records
+    const quotaRecord = await this.workspaceTaskQuotaModel.findOne({
+      workspace_id: new Types.ObjectId(workspaceId),
+      quota_date: {
+        $gte: today,
+        $lt: tomorrow,
+      },
+    });
+
+    // If not found, try to find ANY quota record for today (fallback for legacy data)
+    let finalQuotaRecord = quotaRecord;
+    if (!finalQuotaRecord) {
+      console.log(`[countWorkspaceTasksCreatedToday] ⚠️  First query returned no result, trying fallback query...`);
+      
+      // Try to find by exact date (in case stored as local midnight)
+      const todayLocal = new Date(now);
+      todayLocal.setHours(0, 0, 0, 0);
+      
+      const tomorrowLocal = new Date(todayLocal);
+      tomorrowLocal.setDate(tomorrowLocal.getDate() + 1);
+      
+      console.log(`[countWorkspaceTasksCreatedToday] Fallback: Looking between ${todayLocal.toISOString()} and ${tomorrowLocal.toISOString()}`);
+      
+      finalQuotaRecord = await this.workspaceTaskQuotaModel.findOne({
+        workspace_id: new Types.ObjectId(workspaceId),
+        quota_date: {
+          $gte: todayLocal,
+          $lt: tomorrowLocal,
+        },
+      });
+    }
+
+    const count = finalQuotaRecord?.created_count ?? 0;
+    console.log(`[countWorkspaceTasksCreatedToday] Found quota record:`, finalQuotaRecord ? { created_count: finalQuotaRecord.created_count, quota_date: finalQuotaRecord.quota_date } : 'NONE');
+    console.log(`[countWorkspaceTasksCreatedToday] Returning count: ${count}`);
+    return count;
+  }
+
+  /**
+   * Increment daily quota counter cho workspace
+   * Được gọi khi workspace task được tạo
+   */
+  async incrementWorkspaceTaskQuota(workspaceId: string): Promise<void> {
+    const now = new Date();
+    // Use UTC midnight
+    const quotaDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
+
+    console.log(`[incrementWorkspaceTaskQuota] workspaceId: ${workspaceId}, quotaDate: ${quotaDate.toISOString()}`);
+
+    // Find existing quota record for this workspace + date
+    const existingQuota = await this.workspaceTaskQuotaModel.findOne({
+      workspace_id: new Types.ObjectId(workspaceId),
+      quota_date: quotaDate,
+    });
+
+    if (existingQuota) {
+      // Increment counter
+      existingQuota.created_count += 1;
+      existingQuota.updated_at = new Date();
+      await existingQuota.save();
+      console.log(`[incrementWorkspaceTaskQuota] Updated quota for workspace ${workspaceId}: ${existingQuota.created_count}`);
+    } else {
+      // Create new record
+      const newQuota = new this.workspaceTaskQuotaModel({
+        workspace_id: new Types.ObjectId(workspaceId),
+        quota_date: quotaDate,
+        created_count: 1,
+        created_at: new Date(),
+        updated_at: new Date(),
+      });
+      await newQuota.save();
+      console.log(`[incrementWorkspaceTaskQuota] Created new quota record for workspace ${workspaceId}: 1`);
+    }
+  }
 }
+
