@@ -59,12 +59,9 @@ export class UpdateAchievementRequest {
   @IsString()
   icon_url?: string;
 
-  @ApiPropertyOptional({ type: [RuleUpdateDto] })
+  @ApiPropertyOptional({ type: [RuleUpdateDto], description: 'Array of rules or JSON string when using FormData' })
   @IsOptional()
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => RuleUpdateDto)
-  rules?: RuleUpdateDto[] | string; // Cho phép string khi sử dụng FormData
+  rules?: RuleUpdateDto[] | string; // Cho phép string khi sử dụng FormData, validation sẽ được xử lý trong controller
 
   @ApiPropertyOptional({ enum: LogicOperator })
   @IsOptional()
