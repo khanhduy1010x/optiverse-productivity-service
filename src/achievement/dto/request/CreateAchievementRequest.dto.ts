@@ -54,11 +54,8 @@ export class CreateAchievementRequest {
   @IsString()
   icon_url?: string;
 
-  @ApiProperty({ type: [RuleDto] })
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => RuleDto)
-  rules: RuleDto[] | string; // Cho phép string khi sử dụng FormData
+  @ApiProperty({ type: [RuleDto], description: 'Array of rules or JSON string when using FormData' })
+  rules: RuleDto[] | string; // Cho phép string khi sử dụng FormData, validation sẽ được xử lý trong controller
 
   @ApiProperty({ enum: LogicOperator, required: false, default: LogicOperator.AND })
   @IsOptional()
