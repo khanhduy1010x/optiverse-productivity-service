@@ -101,4 +101,26 @@ export class WorkspaceNoteRepository {
       .exec();
     return !!note;
   }
+
+  /**
+   * Find note by name in specific folder within workspace
+   */
+  async findByNameInFolder(
+    workspaceId: string | Types.ObjectId,
+    title: string,
+    folderId: string | Types.ObjectId | null,
+  ): Promise<Note | null> {
+    const query: any = {
+      workspace_id: new Types.ObjectId(workspaceId),
+      title: title,
+    };
+
+    if (folderId) {
+      query.folder_id = new Types.ObjectId(folderId);
+    } else {
+      query.$or = [{ folder_id: { $exists: false } }, { folder_id: null }];
+    }
+
+    return this.noteModel.findOne(query).exec();
+  }
 }

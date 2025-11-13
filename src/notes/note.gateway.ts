@@ -16,6 +16,8 @@ import { Logger } from '@nestjs/common';
 interface ClientData {
   noteIds: Set<string>;
   lastActive: number;
+  workspaceId?: string; // For workspace notes context
+  userId?: string; // Track user ID for workspace
 }
 
 @WebSocketGateway({
@@ -35,6 +37,9 @@ export class NoteGateway
   server: Server;
 
   private clientData: Map<string, ClientData> = new Map();
+
+  // Map userId to socketId for excluding users from broadcasts
+  private userSocketMap: Map<string, string> = new Map();
 
   private cleanupInterval: NodeJS.Timeout;
 
@@ -67,6 +72,11 @@ export class NoteGateway
           userId: client.id,
         });
       });
+
+      // Remove from userSocketMap if userId exists
+      if (clientInfo.userId) {
+        this.userSocketMap.delete(clientInfo.userId);
+      }
     }
 
     this.clientData.delete(client.id);
@@ -85,7 +95,7 @@ export class NoteGateway
 
   @SubscribeMessage('join_note')
   async handleJoinNote(
-    @MessageBody() data: { noteId: string },
+    @MessageBody() data: { noteId: string; workspaceId?: string },
     @ConnectedSocket() client: Socket,
   ) {
     const roomName = `note:${data.noteId}`;
@@ -95,6 +105,10 @@ export class NoteGateway
     if (clientInfo) {
       clientInfo.noteIds.add(data.noteId);
       clientInfo.lastActive = Date.now();
+      // Store workspace context if provided (for workspace notes)
+      if (data.workspaceId) {
+        clientInfo.workspaceId = data.workspaceId;
+      }
     }
 
     try {
@@ -209,15 +223,27 @@ export class NoteGateway
 
   @SubscribeMessage('note_deleted')
   async handleNoteDeleted(
-    @MessageBody() data: { noteId: string; userId: string },
+    @MessageBody()
+    data: { noteId: string; userId: string; workspaceId?: string },
     @ConnectedSocket() client: Socket,
   ) {
     const roomName = `note:${data.noteId}`;
 
-    client.to(roomName).emit('note_deleted', {
+    // Broadcast to all users in note room
+    this.server.to(roomName).emit('note_deleted', {
       noteId: data.noteId,
       eventType: 'my_note',
     });
+
+    // If workspace note, also broadcast to workspace room
+    if (data.workspaceId) {
+      const workspaceRoom = `workspace:${data.workspaceId}`;
+      this.server.to(workspaceRoom).emit('note_deleted', {
+        noteId: data.noteId,
+        workspaceId: data.workspaceId,
+        eventType: 'workspace_note',
+      });
+    }
 
     try {
       const note = await this.noteService.getNotebyId(data.noteId);
@@ -255,16 +281,34 @@ export class NoteGateway
 
   @SubscribeMessage('note_renamed')
   async handleNoteRenamed(
-    @MessageBody() data: { noteId: string; newTitle: string; userId: string },
+    @MessageBody()
+    data: {
+      noteId: string;
+      newTitle: string;
+      userId: string;
+      workspaceId?: string;
+    },
     @ConnectedSocket() client: Socket,
   ) {
     const roomName = `note:${data.noteId}`;
 
-    client.to(roomName).emit('note_renamed', {
+    // Broadcast to all users in note room
+    this.server.to(roomName).emit('note_renamed', {
       noteId: data.noteId,
       newTitle: data.newTitle,
       eventType: 'my_note',
     });
+
+    // If workspace note, also broadcast to workspace room
+    if (data.workspaceId) {
+      const workspaceRoom = `workspace:${data.workspaceId}`;
+      this.server.to(workspaceRoom).emit('note_renamed', {
+        noteId: data.noteId,
+        newTitle: data.newTitle,
+        workspaceId: data.workspaceId,
+        eventType: 'workspace_note',
+      });
+    }
 
     try {
       const note = await this.noteService.getNotebyId(data.noteId);
@@ -492,6 +536,16 @@ export class NoteGateway
 
     const roomName = `user:${data.userId.toString()}`;
     client.join(roomName);
+
+    const clientInfo = this.clientData.get(client.id);
+    if (clientInfo) {
+      clientInfo.userId = data.userId;
+      clientInfo.lastActive = Date.now();
+    }
+
+    // Map userId to socketId for excluding from broadcasts
+    this.userSocketMap.set(data.userId, client.id);
+
     this.logger.log(`User ${data.userId} joined room ${roomName}`);
   }
 
@@ -504,7 +558,40 @@ export class NoteGateway
 
     const roomName = `user:${data.userId.toString()}`;
     client.leave(roomName);
+
+    const clientInfo = this.clientData.get(client.id);
+    if (clientInfo) {
+      clientInfo.userId = undefined;
+      clientInfo.lastActive = Date.now();
+    }
+
     this.logger.log(`User ${data.userId} left room ${roomName}`);
+  }
+
+  @SubscribeMessage('join_room')
+  handleJoinRoom(
+    @MessageBody() data: { room: string },
+    @ConnectedSocket() client: Socket,
+  ) {
+    if (!data.room) return;
+
+    client.join(data.room);
+    this.logger.log(`Client ${client.id} joined room ${data.room}`);
+
+    return { success: true, room: data.room };
+  }
+
+  @SubscribeMessage('leave_room')
+  handleLeaveRoom(
+    @MessageBody() data: { room: string },
+    @ConnectedSocket() client: Socket,
+  ) {
+    if (!data.room) return;
+
+    client.leave(data.room);
+    this.logger.log(`Client ${client.id} left room ${data.room}`);
+
+    return { success: true, room: data.room };
   }
 
   @SubscribeMessage('note_shared')
@@ -651,5 +738,220 @@ export class NoteGateway
         resolve();
       }, 1000);
     });
+  }
+
+  // ========== Workspace Note Events ==========
+
+  /**
+   * Emit when a note is created in workspace
+   */
+  emitWorkspaceNoteCreated(
+    workspaceId: string,
+    payload: {
+      noteId: string;
+      title: string;
+      createdBy: string;
+      folderId?: string;
+    },
+  ): void {
+    const roomName = `workspace:${workspaceId}`;
+    const eventData = {
+      workspaceId,
+      noteId: payload.noteId,
+      title: payload.title,
+      createdBy: payload.createdBy,
+      folderId: payload.folderId,
+      timestamp: new Date(),
+    };
+
+    this.server.to(roomName).emit('note_created', eventData);
+    this.logger.log(`Emitted note_created event to room ${roomName}`);
+  }
+
+  /**
+   * Emit when a note is deleted in workspace
+   */
+  emitWorkspaceNoteDeleted(
+    workspaceId: string,
+    payload: {
+      noteId: string;
+      deletedBy: string;
+    },
+  ): void {
+    const roomName = `workspace:${workspaceId}`;
+    const eventData = {
+      workspaceId,
+      noteId: payload.noteId,
+      deletedBy: payload.deletedBy,
+      timestamp: new Date(),
+    };
+
+    // Get socket ID of the user who deleted the note
+    const excludeSocketId = this.userSocketMap.get(payload.deletedBy);
+
+    if (excludeSocketId) {
+      // Exclude the user who performed the delete from receiving the notification
+      this.server
+        .to(roomName)
+        .except(excludeSocketId)
+        .emit('note_deleted', eventData);
+    } else {
+      // Fallback if socket ID not found
+      this.server.to(roomName).emit('note_deleted', eventData);
+    }
+
+    this.logger.log(
+      `Emitted note_deleted event to room ${roomName} (excluded user: ${payload.deletedBy})`,
+    );
+  }
+
+  /**
+   * Emit when a note is renamed in workspace
+   */
+  emitWorkspaceNoteRenamed(
+    workspaceId: string,
+    payload: {
+      noteId: string;
+      newTitle: string;
+      renamedBy: string;
+    },
+  ): void {
+    const roomName = `workspace:${workspaceId}`;
+    const eventData = {
+      workspaceId,
+      noteId: payload.noteId,
+      newTitle: payload.newTitle,
+      renamedBy: payload.renamedBy,
+      timestamp: new Date(),
+    };
+
+    this.server.to(roomName).emit('note_renamed', eventData);
+    this.logger.log(`Emitted note_renamed event to room ${roomName}`);
+  }
+
+  /**
+   * Emit when a folder is created in workspace
+   */
+  emitWorkspaceFolderCreated(
+    workspaceId: string,
+    payload: {
+      folderId: string;
+      name: string;
+      createdBy: string;
+      parentFolderId?: string;
+    },
+  ): void {
+    const roomName = `workspace:${workspaceId}`;
+    const eventData = {
+      workspaceId,
+      folderId: payload.folderId,
+      name: payload.name,
+      createdBy: payload.createdBy,
+      parentFolderId: payload.parentFolderId,
+      timestamp: new Date(),
+    };
+
+    this.server.to(roomName).emit('folder_created', eventData);
+    this.logger.log(`Emitted folder_created event to room ${roomName}`);
+  }
+
+  /**
+   * Emit when a folder is deleted in workspace
+   */
+  emitWorkspaceFolderDeleted(
+    workspaceId: string,
+    payload: {
+      folderId: string;
+      deletedBy: string;
+    },
+  ): void {
+    const roomName = `workspace:${workspaceId}`;
+    const eventData = {
+      workspaceId,
+      folderId: payload.folderId,
+      deletedBy: payload.deletedBy,
+      timestamp: new Date(),
+    };
+
+    // Get socket ID of the user who deleted the folder
+    const excludeSocketId = this.userSocketMap.get(payload.deletedBy);
+
+    if (excludeSocketId) {
+      // Exclude the user who performed the delete from receiving the notification
+      this.server
+        .to(roomName)
+        .except(excludeSocketId)
+        .emit('folder_deleted', eventData);
+    } else {
+      // Fallback if socket ID not found
+      this.server.to(roomName).emit('folder_deleted', eventData);
+    }
+
+    this.logger.log(
+      `Emitted folder_deleted event to room ${roomName} (excluded user: ${payload.deletedBy})`,
+    );
+  }
+
+  /**
+   * Emit when a folder is renamed in workspace
+   */
+  emitWorkspaceFolderRenamed(
+    workspaceId: string,
+    payload: {
+      folderId: string;
+      newName: string;
+      renamedBy: string;
+    },
+  ): void {
+    const roomName = `workspace:${workspaceId}`;
+    const eventData = {
+      workspaceId,
+      folderId: payload.folderId,
+      newName: payload.newName,
+      renamedBy: payload.renamedBy,
+      timestamp: new Date(),
+    };
+
+    this.server.to(roomName).emit('folder_renamed', eventData);
+    this.logger.log(`Emitted folder_renamed event to room ${roomName}`);
+  }
+
+  /**
+   * Emit general folder structure changed event
+   */
+  emitWorkspaceFolderStructureChanged(
+    workspaceId: string,
+    payload: {
+      changedBy: string;
+      eventType?: string;
+      excludeChanger?: boolean;
+    },
+  ): void {
+    const roomName = `workspace:${workspaceId}`;
+    const eventData = {
+      workspaceId,
+      changedBy: payload.changedBy,
+      eventType: payload.eventType || 'general',
+      timestamp: new Date(),
+    };
+
+    // Exclude the user who made the change if requested (e.g., for delete events)
+    if (payload.excludeChanger) {
+      const excludeSocketId = this.userSocketMap.get(payload.changedBy);
+      if (excludeSocketId) {
+        this.server
+          .to(roomName)
+          .except(excludeSocketId)
+          .emit('folder_structure_changed', eventData);
+      } else {
+        this.server.to(roomName).emit('folder_structure_changed', eventData);
+      }
+    } else {
+      this.server.to(roomName).emit('folder_structure_changed', eventData);
+    }
+
+    this.logger.log(
+      `Emitted folder_structure_changed event to room ${roomName}${payload.excludeChanger ? ` (excluded user: ${payload.changedBy})` : ''}`,
+    );
   }
 }

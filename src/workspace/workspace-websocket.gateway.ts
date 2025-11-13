@@ -10,8 +10,7 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { OnEvent } from '@nestjs/event-emitter';
-import { Inject, Logger } from '@nestjs/common';
-import { WorkspaceNoteService } from '../notes/workpsace/workspace-note.service';
+import { Logger } from '@nestjs/common';
 
 @WebSocketGateway({
   namespace: '/workspace',
@@ -27,10 +26,7 @@ export class WorkspaceWebSocketGateway
 
   @WebSocketServer() server: Server;
 
-  constructor(
-    @Inject(WorkspaceNoteService)
-    private readonly workspaceNoteService: WorkspaceNoteService,
-  ) {}
+  constructor() {}
 
   afterInit(server: Server) {
     console.log('Workspace WebSocket Gateway initialized');
@@ -193,18 +189,11 @@ export class WorkspaceWebSocketGateway
     try {
       const noteRoomName = `note:${data.noteId}`;
 
-      // Save to database
-      await this.workspaceNoteService.updateNote(
-        data.workspaceId,
-        data.noteId,
-        data.userId,
-        {
-          content: data.content,
-        },
-      );
+      // Note: Database saving should be handled by the main NoteGateway
+      // This gateway is primarily for workspace structure events
 
       this.logger.log(
-        `Note saved to DB: ${data.noteId} by user ${data.userId}`,
+        `Note content update received: ${data.noteId} by user ${data.userId}`,
       );
 
       // Broadcast update to all users in the note room EXCEPT sender
@@ -221,7 +210,10 @@ export class WorkspaceWebSocketGateway
         userId: data.userId,
       });
     } catch (error) {
-      this.logger.error(`Error updating note: ${error.message}`, error.stack);
+      this.logger.error(
+        `Error handling note update: ${error.message}`,
+        error.stack,
+      );
       // Send error back to client
       client.emit('note-update-error', {
         noteId: data.noteId,
@@ -511,5 +503,208 @@ export class WorkspaceWebSocketGateway
       changedBy: payload.changedBy,
       timestamp: new Date(),
     });
+  }
+
+  // ========== Note/Folder Events for Workspace ==========
+
+  /**
+   * Emit when a note is created in workspace
+   */
+  emitNoteCreated(
+    workspaceId: string,
+    payload: {
+      noteId: string;
+      title: string;
+      createdBy: string;
+      folderId?: string;
+    },
+  ): void {
+    const roomName = `workspace:${workspaceId}`;
+    const eventData = {
+      workspaceId,
+      noteId: payload.noteId,
+      title: payload.title,
+      createdBy: payload.createdBy,
+      folderId: payload.folderId,
+      timestamp: new Date(),
+    };
+
+    // Emit to workspace namespace room
+    this.server.to(roomName).emit('note_created', eventData);
+
+    this.logger.log(
+      `Emitted note_created event to workspace room ${roomName}:`,
+      payload,
+    );
+  }
+
+  /**
+   * Emit when a note is deleted in workspace
+   */
+  emitNoteDeleted(
+    workspaceId: string,
+    payload: {
+      noteId: string;
+      deletedBy: string;
+    },
+  ): void {
+    const roomName = `workspace:${workspaceId}`;
+    const eventData = {
+      workspaceId,
+      noteId: payload.noteId,
+      deletedBy: payload.deletedBy,
+      timestamp: new Date(),
+    };
+
+    // Emit to workspace namespace room
+    this.server.to(roomName).emit('note_deleted', eventData);
+
+    this.logger.log(
+      `Emitted note_deleted event to workspace room ${roomName}:`,
+      payload,
+    );
+  }
+
+  /**
+   * Emit when a note is renamed in workspace
+   */
+  emitNoteRenamed(
+    workspaceId: string,
+    payload: {
+      noteId: string;
+      newTitle: string;
+      renamedBy: string;
+    },
+  ): void {
+    const roomName = `workspace:${workspaceId}`;
+    const eventData = {
+      workspaceId,
+      noteId: payload.noteId,
+      newTitle: payload.newTitle,
+      renamedBy: payload.renamedBy,
+      timestamp: new Date(),
+    };
+
+    // Emit to workspace namespace room
+    this.server.to(roomName).emit('note_renamed', eventData);
+
+    this.logger.log(
+      `Emitted note_renamed event to workspace room ${roomName}:`,
+      payload,
+    );
+  }
+
+  /**
+   * Emit when a folder is created in workspace
+   */
+  emitFolderCreated(
+    workspaceId: string,
+    payload: {
+      folderId: string;
+      name: string;
+      createdBy: string;
+      parentFolderId?: string;
+    },
+  ): void {
+    const roomName = `workspace:${workspaceId}`;
+    const eventData = {
+      workspaceId,
+      folderId: payload.folderId,
+      name: payload.name,
+      createdBy: payload.createdBy,
+      parentFolderId: payload.parentFolderId,
+      timestamp: new Date(),
+    };
+
+    // Emit to workspace namespace room
+    this.server.to(roomName).emit('folder_created', eventData);
+
+    this.logger.log(
+      `Emitted folder_created event to workspace room ${roomName}:`,
+      payload,
+    );
+  }
+
+  /**
+   * Emit when a folder is deleted in workspace
+   */
+  emitFolderDeleted(
+    workspaceId: string,
+    payload: {
+      folderId: string;
+      deletedBy: string;
+    },
+  ): void {
+    const roomName = `workspace:${workspaceId}`;
+    const eventData = {
+      workspaceId,
+      folderId: payload.folderId,
+      deletedBy: payload.deletedBy,
+      timestamp: new Date(),
+    };
+
+    // Emit to workspace namespace room
+    this.server.to(roomName).emit('folder_deleted', eventData);
+
+    this.logger.log(
+      `Emitted folder_deleted event to workspace room ${roomName}:`,
+      payload,
+    );
+  }
+
+  /**
+   * Emit when a folder is renamed in workspace
+   */
+  emitFolderRenamed(
+    workspaceId: string,
+    payload: {
+      folderId: string;
+      newName: string;
+      renamedBy: string;
+    },
+  ): void {
+    const roomName = `workspace:${workspaceId}`;
+    const eventData = {
+      workspaceId,
+      folderId: payload.folderId,
+      newName: payload.newName,
+      renamedBy: payload.renamedBy,
+      timestamp: new Date(),
+    };
+
+    // Emit to workspace namespace room
+    this.server.to(roomName).emit('folder_renamed', eventData);
+
+    this.logger.log(
+      `Emitted folder_renamed event to workspace room ${roomName}:`,
+      payload,
+    );
+  }
+
+  /**
+   * Emit general folder structure changed event
+   */
+  emitFolderStructureChanged(
+    workspaceId: string,
+    payload: {
+      changedBy: string;
+      eventType?: string;
+    },
+  ): void {
+    const roomName = `workspace:${workspaceId}`;
+    const eventData = {
+      workspaceId,
+      changedBy: payload.changedBy,
+      eventType: payload.eventType || 'general',
+      timestamp: new Date(),
+    };
+
+    // Emit to workspace namespace room
+    this.server.to(roomName).emit('folder_structure_changed', eventData);
+
+    this.logger.log(
+      `Emitted folder_structure_changed event to workspace room ${roomName}:`,
+      payload,
+    );
   }
 }
