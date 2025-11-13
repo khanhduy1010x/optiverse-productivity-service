@@ -64,6 +64,12 @@ export class TaskEvent {
 
   @Prop({ type: Types.ObjectId, ref: 'TaskEvent' })
   parent_event_id?: Types.ObjectId;
+
+  @Prop({ default: false })
+  reminder_sent?: boolean;
+
+  @Prop()
+  reminder_sent_at?: Date;
 }
 
 export const TaskEventSchema = SchemaFactory.createForClass(TaskEvent);

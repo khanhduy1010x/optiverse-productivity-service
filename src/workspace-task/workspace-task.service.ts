@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, HttpException, HttpStatus } from '@nestjs/common';
 import { WorkspaceTaskRepository } from './workspace-task.repository';
 import { PermissionService } from 'src/workspace/permission.service';
 import { WorkspaceTaskPermissionService } from './workspace-task-permission.service';
@@ -6,6 +6,11 @@ import { WorkspaceTask } from './workspace-task.schema';
 import { AppException } from 'src/common/exceptions/app.exception';
 import { ErrorCode } from 'src/common/exceptions/error-code.enum';
 import { TaskRolePreset } from './task-permission.enum';
+import { 
+  getWorkspaceTaskLimitByMembershipLevel, 
+  canCreateWorkspaceTask, 
+  getDetailedWorkspaceTaskLimitExceededResponse 
+} from './utils/workspace-task-limit.util';
 
 @Injectable()
 export class WorkspaceTaskService {
@@ -18,6 +23,100 @@ export class WorkspaceTaskService {
   ) {}
 
   // ========== Task CRUD ==========
+  
+  /**
+   * Validate workspace task creation limit based on workspace owner's membership
+   * 
+   * @param workspaceId - ID của workspace
+   * @param ownerMembershipLevel - Level membership của owner workspace
+   * @param ownerHasActiveMembership - Active membership status của owner workspace
+   * @throws HttpException nếu vượt giới hạn với detailed response
+   */
+  private async validateWorkspaceTaskCreationLimit(
+    workspaceId: string, 
+    ownerMembershipLevel: number, 
+    ownerHasActiveMembership: boolean = true
+  ): Promise<void> {
+    console.log(`[validateWorkspaceTaskCreationLimit] Checking workspace ${workspaceId}: ownerHasActiveMembership=${ownerHasActiveMembership}, ownerMembershipLevel=${ownerMembershipLevel}`);
+
+    let finalMembershipLevel = ownerMembershipLevel;
+    let finalHasActiveMembership = ownerHasActiveMembership;
+
+    // Logic 1: Nếu hasActiveMembership: false → luôn là FREE, không xét level
+    if (!ownerHasActiveMembership) {
+      console.log('[validateWorkspaceTaskCreationLimit] ownerHasActiveMembership: false → Workspace owner is FREE tier (10/day limit)');
+      finalMembershipLevel = 0; // Dummy level, sẽ được xử lý qua hasActiveMembership: false
+    } 
+    // Logic 2: Nếu hasActiveMembership: true → kiểm tra xem level có hợp lệ không
+    else {
+      // Chỉ BUSINESS (level 2) có unlimited - skip check hoàn toàn
+      if (ownerMembershipLevel === 2) {
+        console.log('[validateWorkspaceTaskCreationLimit] ownerHasActiveMembership: true + level 2 → BUSINESS tier (Unlimited) - skipping validation');
+        return;
+      }
+
+      // Kiểm tra level hợp lệ: nếu không phải 0, 1, 2 thì coi là lỗi
+      if (!Number.isInteger(ownerMembershipLevel) || ownerMembershipLevel < 0 || ownerMembershipLevel > 2) {
+        console.log(`[validateWorkspaceTaskCreationLimit] ownerHasActiveMembership: true nhưng ownerMembershipLevel ${ownerMembershipLevel} không hợp lệ → treating as FREE`);
+        // Nếu level không hợp lệ, coi như không có active membership
+        finalHasActiveMembership = false;
+      } else if (ownerMembershipLevel === 0) {
+        console.log('[validateWorkspaceTaskCreationLimit] ownerHasActiveMembership: true + level 0 → BASIC tier (20/day limit)');
+      } else if (ownerMembershipLevel === 1) {
+        console.log('[validateWorkspaceTaskCreationLimit] ownerHasActiveMembership: true + level 1 → PLUS tier (50/day limit)');
+      }
+    }
+
+    // Đếm số workspace task tạo hôm nay trong workspace
+    const tasksCreatedToday = await this.taskRepository.countWorkspaceTasksCreatedToday(workspaceId);
+    console.log(`[validateWorkspaceTaskCreationLimit] tasksCreatedToday: ${tasksCreatedToday}, finalMembershipLevel: ${finalMembershipLevel}, finalHasActiveMembership: ${finalHasActiveMembership}`);
+
+    // Check xem có thể tạo workspace task không - IMPORTANT: pass finalHasActiveMembership để đúng limit
+    const canCreate = canCreateWorkspaceTask(tasksCreatedToday, finalMembershipLevel, finalHasActiveMembership);
+    console.log(`[validateWorkspaceTaskCreationLimit] canCreate result: ${canCreate}`);
+    
+    if (!canCreate) {
+      console.log(`[validateWorkspaceTaskCreationLimit] ❌ Workspace task limit EXCEEDED for workspace ${workspaceId}. tasksCreatedToday=${tasksCreatedToday}`);
+      try {
+        // Lấy detailed response với upgrade suggestion
+        const errorResponse = getDetailedWorkspaceTaskLimitExceededResponse(finalMembershipLevel, tasksCreatedToday, finalHasActiveMembership);
+        
+        console.log('Workspace task limit error response:', JSON.stringify(errorResponse, null, 2));
+        
+        // Throw HttpException to ensure proper JSON response with full error details
+        throw new HttpException(
+          {
+            code: errorResponse.code,
+            statusCode: errorResponse.code,
+            message: errorResponse.message,
+            error: errorResponse.error,
+            details: errorResponse.details,
+            upgrade: errorResponse.upgrade,
+          },
+          HttpStatus.BAD_REQUEST,
+        );
+      } catch (error) {
+        console.error('Error in validateWorkspaceTaskCreationLimit:', error);
+        // If it's already an HttpException, re-throw it
+        if (error instanceof HttpException) {
+          throw error;
+        }
+        // Otherwise throw a generic bad request
+        throw new HttpException(
+          {
+            code: 400,
+            statusCode: 400,
+            message: `You have reached the daily workspace task limit. Please upgrade the workspace owner's membership to create more tasks.`,
+            error: 'WORKSPACE_TASK_LIMIT_EXCEEDED',
+          },
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+    } else {
+      console.log(`[validateWorkspaceTaskCreationLimit] User can create workspace task (${tasksCreatedToday} < limit)`);
+    }
+  }
+  
   async createTask(
     workspaceId: string,
     userId: string,
@@ -26,8 +125,13 @@ export class WorkspaceTaskService {
     assignedTo?: string,
     endTime?: string,
     assignedToList?: string[],
+    ownerMembershipLevel: number = 0,
+    ownerHasActiveMembership: boolean = false,
   ): Promise<WorkspaceTask> {
     this.logger.log(`[createTask] Starting - workspaceId: ${workspaceId}, userId: ${userId}, title: ${title}, endTime: ${endTime}`);
+    
+    // Validate workspace task creation limit based on workspace owner's membership
+    await this.validateWorkspaceTaskCreationLimit(workspaceId, ownerMembershipLevel, ownerHasActiveMembership);
     
     // Check if user has permission to create task in workspace
     try {
@@ -48,6 +152,11 @@ export class WorkspaceTaskService {
       assignedToList,
     );
     this.logger.log(`[createTask] Task created: ${task._id}`);
+    
+    // Increment workspace task quota counter
+    await this.taskRepository.incrementWorkspaceTaskQuota(workspaceId);
+    this.logger.log(`[createTask] Workspace task quota incremented for workspace: ${workspaceId}`);
+    
     return task;
   }
 

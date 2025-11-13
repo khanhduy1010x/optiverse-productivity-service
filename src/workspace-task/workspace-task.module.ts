@@ -8,11 +8,16 @@ import {
   WorkspaceTaskMemberPermission,
   WorkspaceTaskMemberPermissionSchema,
 } from './workspace-task-member-permission.schema';
+import {
+  WorkspaceTaskQuota,
+  WorkspaceTaskQuotaSchema,
+} from './workspace-task-quota.schema';
 import { WorkspaceTaskController } from './workspace-task.controller';
 import { WorkspaceTaskService } from './workspace-task.service';
 import { WorkspaceTaskRepository } from './workspace-task.repository';
 import { WorkspaceTaskPermissionService } from './workspace-task-permission.service';
 import { WorkspaceModule } from '../workspace/workspace.module';
+import { AxiosClientModule } from '../http-axios/axios-client.module';
 
 @Module({
   imports: [
@@ -25,8 +30,13 @@ import { WorkspaceModule } from '../workspace/workspace.module';
         name: WorkspaceTaskMemberPermission.name,
         schema: WorkspaceTaskMemberPermissionSchema,
       },
+      {
+        name: WorkspaceTaskQuota.name,
+        schema: WorkspaceTaskQuotaSchema,
+      },
     ]),
     WorkspaceModule,
+    AxiosClientModule,
   ],
   controllers: [WorkspaceTaskController],
   providers: [
