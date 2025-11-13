@@ -6,7 +6,7 @@ export interface UserDetailDto {
   role?: string;
   status: string;
   time: Date;
-  permissions?: string[]; // Permissions of this specific member
+  permissions?: string[]; // Combined workspace and note permissions of this specific member
 }
 
 export interface WorkspaceDetailDto {

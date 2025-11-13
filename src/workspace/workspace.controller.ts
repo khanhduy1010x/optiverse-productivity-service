@@ -33,6 +33,8 @@ import { WorkspaceJoinRequest } from './workspace-join-request.schema';
 import { ApiResponse } from 'src/common/api-response';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { UserDto } from 'src/user-dto/user.dto';
+import { AppException } from 'src/common/exceptions/app.exception';
+import { ErrorCode } from 'src/common/exceptions/error-code.enum';
 
 @ApiTags('workspace')
 @ApiBearerAuth('access-token')
@@ -164,6 +166,26 @@ export class WorkspaceController {
     return new ApiResponse<WorkspaceDetailDto>(workspaceDetail);
   }
 
+  @Get(':id/members')
+  async getWorkspaceMembers(
+    @Request() req,
+    @Param('id') workspaceId: string,
+  ): Promise<ApiResponse<WorkspaceMember[]>> {
+    const user = req.userInfo as UserDto;
+    // Ensure the requester has access to view members
+    const hasAccess = await this.workspaceService.verifyUserAccess(
+      workspaceId,
+      user.userId,
+    );
+    if (!hasAccess) {
+      throw new AppException(ErrorCode.UNAUTHORIZED);
+    }
+
+    const members =
+      await this.workspaceService.getWorkspaceMembers(workspaceId);
+    return new ApiResponse<WorkspaceMember[]>(members);
+  }
+
   @Get(':id/basic')
   async getWorkspaceBasicInfo(
     @Request() req,
@@ -203,6 +225,31 @@ export class WorkspaceController {
       updateWorkspaceDto,
     );
     return new ApiResponse<Workspace>(workspace);
+  }
+
+  @Post(':id/leave')
+  async leaveWorkspace(
+    @Request() req,
+    @Param('id') workspaceId: string,
+    @Body() body: { newOwnerId?: string },
+  ): Promise<ApiResponse<void>> {
+    const user = req.userInfo as UserDto;
+    await this.workspaceService.leaveWorkspace(
+      workspaceId,
+      user.userId,
+      body.newOwnerId,
+    );
+    return new ApiResponse<void>();
+  }
+
+  @Delete(':id')
+  async deleteWorkspace(
+    @Request() req,
+    @Param('id') workspaceId: string,
+  ): Promise<ApiResponse<void>> {
+    const user = req.userInfo as UserDto;
+    await this.workspaceService.deleteWorkspace(workspaceId, user.userId);
+    return new ApiResponse<void>();
   }
 
   // ========== Join Request Endpoints ==========
@@ -360,6 +407,7 @@ export class WorkspaceController {
     @Body() body: ManageMemberPermissionsDto,
   ): Promise<ApiResponse<void>> {
     const user = req.userInfo as UserDto;
+    console.log('Managing permissions for user:', body.userId);
     await this.workspaceService.manageMemberPermissions(
       workspaceId,
       user.userId,

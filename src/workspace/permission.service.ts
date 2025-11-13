@@ -12,10 +12,13 @@ export enum Permission {
   MANAGE_PASSWORD = 'MANAGE_PASSWORD',
   MANAGE_MEMBERS = 'MANAGE_MEMBERS',
   ACCEPT_MEMBER = 'ACCEPT_MEMBER',
-  MANAGE_PERMISSIONS = 'MANAGE_PERMISSIONS', // ✅ quyền meta: được phép cấp quyền cho người khác
-  room_admin = 'room_admin', // ✅ quyền quản lý room (workspace permission)
-  room_user = 'room_user', // ✅ quyền sử dụng room (workspace permission)
-  room_permission = 'room_permission', // ✅ toggle permission for room (frontend only)
+  MANAGE_PERMISSIONS = 'MANAGE_PERMISSIONS',
+  MANAGE_NOTES = 'MANAGE_NOTES', // ✅ quyền quản lý notes (frontend permission, maps to note table)
+  room_admin = 'room_admin',
+  room_user = 'room_user',
+  room_permission = 'room_permission',
+  note_admin = 'note_admin',
+  note_user = 'note_user',
 }
 
 @Injectable()

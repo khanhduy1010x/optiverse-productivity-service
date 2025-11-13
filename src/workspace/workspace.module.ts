@@ -13,6 +13,10 @@ import {
   WorkspacePermission,
   WorkspacePermissionSchema,
 } from './workspace_permission.schema';
+import {
+  WorkspaceNotePermission,
+  WorkspaceNotePermissionSchema,
+} from './wokspace_permission.note.schema';
 import { WorkspaceController } from './workspace.controller';
 import { WorkspaceService } from './workspace.service';
 import { WorkspaceRepository } from './workspace.repository';
@@ -29,6 +33,10 @@ import { WorkspaceNoteModule } from '../notes/workpsace/workspace-note.module';
       { name: WorkspaceMember.name, schema: WorkspaceMemberSchema },
       { name: WorkspaceJoinRequest.name, schema: WorkspaceJoinRequestSchema },
       { name: WorkspacePermission.name, schema: WorkspacePermissionSchema },
+      {
+        name: WorkspaceNotePermission.name,
+        schema: WorkspaceNotePermissionSchema,
+      },
     ]),
     forwardRef(() => WorkspaceNoteModule),
   ],
@@ -46,6 +54,7 @@ import { WorkspaceNoteModule } from '../notes/workpsace/workspace-note.module';
     WorkspaceRepository,
     PermissionService,
     WorkspacePermissionService,
+    WorkspaceWebSocketGateway,
   ],
 })
 export class WorkspaceModule {}

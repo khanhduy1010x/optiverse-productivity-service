@@ -157,4 +157,29 @@ export class WorkspaceFolderRepository {
       .exec();
     return !!folder;
   }
+
+  /**
+   * Find folder by name in specific parent folder within workspace
+   */
+  async findByNameInParent(
+    workspaceId: string | Types.ObjectId,
+    name: string,
+    parentFolderId: string | Types.ObjectId | null,
+  ): Promise<NoteFolder | null> {
+    const query: any = {
+      workspace_id: new Types.ObjectId(workspaceId),
+      name: name,
+    };
+
+    if (parentFolderId) {
+      query.parent_folder_id = new Types.ObjectId(parentFolderId);
+    } else {
+      query.$or = [
+        { parent_folder_id: { $exists: false } },
+        { parent_folder_id: null },
+      ];
+    }
+
+    return this.folderModel.findOne(query).exec();
+  }
 }

@@ -1,4 +1,5 @@
 import { Injectable, Inject } from '@nestjs/common';
+import { Types } from 'mongoose';
 import { WorkspaceRepository } from './workspace.repository';
 import { PermissionService, Permission } from './permission.service';
 import { WorkspacePermissionService } from './workspace-permission.service';
@@ -204,9 +205,11 @@ export class WorkspaceService {
     });
 
     const memberWorkspacePermissions = new Map<string, string[]>();
+    const memberNotePermissions = new Map<string, string[]>();
 
     for (const userId of memberUserIds) {
       try {
+        // Get workspace permissions
         const workspacePermissions =
           await this.workspacePermissionService.getUserWorkspacePermissions(
             workspaceId,
@@ -226,12 +229,31 @@ export class WorkspaceService {
         }
 
         memberWorkspacePermissions.set(userId, workspaceActions);
+
+        // Get note permissions
+        const notePermissions =
+          await this.workspacePermissionService.getUserNotePermissions(
+            workspaceId,
+            userId,
+          );
+
+        const noteActionMap: { [key: string]: string } = {
+          NOTE_ADMIN: 'note_admin',
+          NOTE_USER: 'note_user',
+        };
+
+        let noteActions: string[] = [];
+        if (notePermissions && notePermissions.actions) {
+          noteActions = notePermissions.actions.map(
+            (action) => noteActionMap[action] || action,
+          );
+        }
+
+        memberNotePermissions.set(userId, noteActions);
       } catch (error) {
-        console.error(
-          `Failed to fetch workspace permissions for user ${userId}:`,
-          error,
-        );
+        console.error(`Failed to fetch permissions for user ${userId}:`, error);
         memberWorkspacePermissions.set(userId, []);
+        memberNotePermissions.set(userId, []);
       }
     }
 
@@ -241,10 +263,13 @@ export class WorkspaceService {
         const user = userMap.get(member.user_id.toString());
         const userWorkspacePermissions =
           memberWorkspacePermissions.get(member.user_id.toString()) || [];
+        const userNotePermissions =
+          memberNotePermissions.get(member.user_id.toString()) || [];
         const allPermissions = [
           ...new Set([
             ...(member.permissions || []),
             ...userWorkspacePermissions,
+            ...userNotePermissions,
           ]),
         ];
 
@@ -266,10 +291,13 @@ export class WorkspaceService {
         const user = userMap.get(member.user_id.toString());
         const userWorkspacePermissions =
           memberWorkspacePermissions.get(member.user_id.toString()) || [];
+        const userNotePermissions =
+          memberNotePermissions.get(member.user_id.toString()) || [];
         const allPermissions = [
           ...new Set([
             ...(member.permissions || []),
             ...userWorkspacePermissions,
+            ...userNotePermissions,
           ]),
         ];
 
@@ -553,6 +581,105 @@ export class WorkspaceService {
     }
 
     await this.workspaceRepository.deleteWorkspace(workspaceId);
+  }
+
+  /**
+   * Allow a user to leave a workspace.
+   * - If the leaving user is the owner, a `newOwnerId` must be provided and
+   *   will become the new workspace owner. The new owner must be an active
+   *   member of the workspace.
+   * - If the leaving user is not the owner, they are simply removed.
+   */
+  async leaveWorkspace(
+    workspaceId: string,
+    userId: string,
+    newOwnerId?: string,
+  ): Promise<void> {
+    const workspace =
+      await this.workspaceRepository.getWorkspaceById(workspaceId);
+
+    const member = await this.workspaceRepository.getMember(
+      workspaceId,
+      userId,
+    );
+
+    if (!member) {
+      throw new AppException(ErrorCode.NOT_FOUND);
+    }
+
+    // Owner leaving: must provide a valid newOwnerId
+    if (workspace.owner_id.toString() === userId) {
+      if (!newOwnerId) {
+        throw new AppException(ErrorCode.INVALID_REQUEST);
+      }
+
+      if (newOwnerId === userId) {
+        throw new AppException(ErrorCode.INVALID_REQUEST);
+      }
+
+      const newOwnerMember = await this.workspaceRepository.getMember(
+        workspaceId,
+        newOwnerId,
+      );
+
+      if (!newOwnerMember || newOwnerMember.status !== 'active') {
+        throw new AppException(ErrorCode.INVALID_REQUEST);
+      }
+
+      // Transfer ownership
+      await this.workspaceRepository.updateWorkspace(workspaceId, {
+        owner_id: new Types.ObjectId(newOwnerId),
+      });
+
+      // Ensure new owner has admin role and default permissions
+      await this.workspaceRepository.updateMemberRole(
+        workspaceId,
+        newOwnerId,
+        'admin',
+      );
+
+      await this.workspacePermissionService.createDefaultPermissions(
+        workspaceId,
+        newOwnerId,
+        'admin',
+      );
+
+      // Remove the leaving owner from members and their permissions
+      await this.workspaceRepository.removeMember(workspaceId, userId);
+      await this.workspaceRepository.decrementMemberCount(workspaceId);
+
+      await this.workspacePermissionService.deletePermissions(
+        workspaceId,
+        userId,
+      );
+      // Notify via gateway that owner left and role changed (role change emitted for new owner)
+      this.workspaceGateway.emitRoleChanged(workspaceId, {
+        targetUserId: newOwnerId,
+        newRole: 'admin',
+        changedBy: userId,
+      });
+      this.workspaceGateway.emitUserRemoved(workspaceId, {
+        targetUserId: userId,
+        removedBy: userId,
+      });
+    } else {
+      // Non-owner leaving: allow user to remove themselves
+      await this.workspaceRepository.removeMember(workspaceId, userId);
+
+      if (member.status === 'active') {
+        await this.workspaceRepository.decrementMemberCount(workspaceId);
+      }
+
+      await this.workspacePermissionService.deletePermissions(
+        workspaceId,
+        userId,
+      );
+
+      this.workspaceGateway.emitUserRemoved(workspaceId, {
+        targetUserId: userId,
+        removedBy: userId,
+      });
+    }
   }
 
   async getWorkspaceMembers(workspaceId: string): Promise<WorkspaceMember[]> {
@@ -1539,6 +1666,7 @@ export class WorkspaceService {
     }
 
     const roomPermissions: string[] = [];
+    const notePermissions: string[] = [];
     const memberPermissions: Permission[] = [];
 
     permissions.forEach((permission) => {
@@ -1548,6 +1676,8 @@ export class WorkspaceService {
         permission === 'room_user'
       ) {
         roomPermissions.push(permission);
+      } else if (permission === 'MANAGE_NOTES') {
+        notePermissions.push(permission);
       } else {
         memberPermissions.push(permission);
       }
@@ -1599,6 +1729,27 @@ export class WorkspaceService {
           targetUserId,
           ['ROOM_USER'],
         );
+      }
+    }
+
+    // Handle note permissions (MANAGE_NOTES -> NOTE_ADMIN/NOTE_USER in separate table)
+    for (const notePermission of notePermissions) {
+      if (notePermission === 'MANAGE_NOTES') {
+        if (action === 'grant' || action === 'set') {
+          // Grant MANAGE_NOTES -> set as NOTE_ADMIN
+          await this.workspacePermissionService.updateNotePermissions(
+            workspaceId,
+            targetUserId,
+            ['NOTE_ADMIN'],
+          );
+        } else if (action === 'revoke') {
+          // Revoke MANAGE_NOTES -> set as NOTE_USER
+          await this.workspacePermissionService.updateNotePermissions(
+            workspaceId,
+            targetUserId,
+            ['NOTE_USER'],
+          );
+        }
       }
     }
 

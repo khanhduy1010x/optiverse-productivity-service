@@ -14,6 +14,7 @@ import {
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { WorkspaceNoteService } from './workspace-note.service';
 import { ApiResponse } from '../../common/api-response';
+import { WorkspacePermissionService } from '../../workspace/workspace-permission.service';
 
 @ApiTags('Workspace Notes')
 @Controller('workspace/:workspaceId/notes')
@@ -21,7 +22,10 @@ import { ApiResponse } from '../../common/api-response';
 export class WorkspaceNoteController {
   private readonly logger = new Logger(WorkspaceNoteController.name);
 
-  constructor(private readonly workspaceNoteService: WorkspaceNoteService) {}
+  constructor(
+    private readonly workspaceNoteService: WorkspaceNoteService,
+    private readonly workspacePermissionService: WorkspacePermissionService,
+  ) {}
 
   /**
    * Create new note in workspace
@@ -75,6 +79,31 @@ export class WorkspaceNoteController {
       return new ApiResponse(result);
     } catch (error) {
       this.logger.error(`Error getting workspace notes: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Check NOTE permission for current user in workspace (NOTE_ADMIN)
+   */
+  @Get('permission')
+  @ApiOperation({ summary: 'Check NOTE permission (NOTE_ADMIN)' })
+  async checkNotePermission(
+    @Param('workspaceId') workspaceId: string,
+    @Req() req: any,
+  ) {
+    try {
+      const userId = req.userInfo?.userId;
+      const isNoteAdmin =
+        await this.workspacePermissionService.hasPermissionNote(
+          workspaceId,
+          userId,
+          'NOTE_ADMIN',
+        );
+
+      return new ApiResponse({ isNoteAdmin });
+    } catch (error) {
+      this.logger.error(`Error checking note permission: ${error.message}`);
       throw error;
     }
   }

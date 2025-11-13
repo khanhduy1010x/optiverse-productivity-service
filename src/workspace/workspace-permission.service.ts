@@ -3,12 +3,15 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { WorkspacePermission } from './workspace_permission.schema';
 import { Workspace } from './workspace.schema';
+import { WorkspaceNotePermission } from './wokspace_permission.note.schema';
 
 @Injectable()
 export class WorkspacePermissionService {
   constructor(
     @InjectModel('WorkspacePermission')
     private workspacePermissionModel: Model<WorkspacePermission>,
+    @InjectModel('WorkspaceNotePermission')
+    private workspaceNotePermissionModel: Model<WorkspaceNotePermission>,
     @InjectModel('Workspace')
     private workspaceModel: Model<Workspace>,
   ) {}
@@ -56,6 +59,15 @@ export class WorkspacePermissionService {
       user_id: new Types.ObjectId(userId),
     });
   }
+  async getUserNotePermissions(
+    workspaceId: string,
+    userId: string,
+  ): Promise<WorkspacePermission | null> {
+    return this.workspaceNotePermissionModel.findOne({
+      workspace_id: new Types.ObjectId(workspaceId),
+      user_id: new Types.ObjectId(userId),
+    });
+  }
 
   /**
    * Kiểm tra user có quyền cụ thể không
@@ -77,6 +89,22 @@ export class WorkspacePermissionService {
     return permission ? permission.actions.includes(action) : false;
   }
 
+  async hasPermissionNote(
+    workspaceId: string,
+    userId: string,
+    action: string,
+  ): Promise<boolean> {
+    // Check if user is workspace owner
+    const isOwner = await this.isWorkspaceOwner(workspaceId, userId);
+    if (isOwner) {
+      return true;
+    }
+
+    // Check if user has the specific action
+    const permission = await this.getUserNotePermissions(workspaceId, userId);
+    return permission ? permission.actions.includes(action) : false;
+  }
+
   /**
    * Cập nhật quyền cho user
    */
@@ -92,6 +120,24 @@ export class WorkspacePermissionService {
       },
       { actions },
       { new: true },
+    );
+  }
+
+  /**
+   * Cập nhật note permissions cho user
+   */
+  async updateNotePermissions(
+    workspaceId: string,
+    userId: string,
+    actions: string[],
+  ): Promise<WorkspaceNotePermission | null> {
+    return this.workspaceNotePermissionModel.findOneAndUpdate(
+      {
+        workspace_id: new Types.ObjectId(workspaceId),
+        user_id: new Types.ObjectId(userId),
+      },
+      { actions },
+      { new: true, upsert: true },
     );
   }
 
@@ -119,7 +165,9 @@ export class WorkspacePermissionService {
     workspaceId: string,
     userId: string,
   ): Promise<boolean> {
-    const workspace = await this.workspaceModel.findById(workspaceId);
+    const workspace = await this.workspaceModel.findById(
+      new Types.ObjectId(workspaceId),
+    );
     if (!workspace) {
       throw new BadRequestException('Workspace không tồn tại');
     }

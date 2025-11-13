@@ -19,13 +19,21 @@ export class NoteRepository {
       .find({
         user_id: new Types.ObjectId(userId),
         $or: [{ folder_id: null }, { folder_id: { $exists: false } }],
+        // Exclude workspace notes and live room notes
+        workspace_id: { $exists: false },
+        live_room_id: { $exists: false },
       })
       .exec();
   }
 
   async getNotesByFolderID(folderId: string): Promise<Note[]> {
     return await this.noteModel
-      .find({ folder_id: new Types.ObjectId(folderId) })
+      .find({
+        folder_id: new Types.ObjectId(folderId),
+        // Exclude workspace notes and live room notes
+        workspace_id: { $exists: false },
+        live_room_id: { $exists: false },
+      })
       .exec();
   }
 
@@ -103,6 +111,9 @@ export class NoteRepository {
       .find({
         user_id: new Types.ObjectId(userId),
         $or: [{ folder_id: null }, { folder_id: { $exists: false } }],
+        // Exclude workspace notes and live room notes
+        workspace_id: { $exists: false },
+        live_room_id: { $exists: false },
       })
       .lean()
       .exec();

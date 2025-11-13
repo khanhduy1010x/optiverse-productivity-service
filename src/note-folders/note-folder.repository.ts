@@ -15,7 +15,20 @@ export class NoteFolderRepository {
   ) {}
 
   async getNoteFolderById(id: string): Promise<NoteFolder | null> {
-    return await this.noteFolderModel.findById(id).populate('files').lean();
+    return await this.noteFolderModel
+      .findOne({
+        _id: id,
+        // Allow getting folder by ID regardless of workspace/live_room for admin purposes
+        // But when used with other methods, they will filter appropriately
+      })
+      .populate({
+        path: 'files',
+        match: {
+          workspace_id: { $exists: false },
+          live_room_id: { $exists: false },
+        },
+      })
+      .lean();
   }
 
   async getAllSubfolders(parentFolderId: string): Promise<NoteFolder[]> {
@@ -27,8 +40,17 @@ export class NoteFolderRepository {
       const subfolders = await this.noteFolderModel
         .find({
           parent_folder_id: new mongoose.Types.ObjectId(currentParentId),
+          // Exclude workspace folders and live room folders
+          workspace_id: { $exists: false },
+          live_room_id: { $exists: false },
         })
-        .populate('files')
+        .populate({
+          path: 'files',
+          match: {
+            workspace_id: { $exists: false },
+            live_room_id: { $exists: false },
+          },
+        })
         .lean();
 
       if (subfolders) {
@@ -48,8 +70,17 @@ export class NoteFolderRepository {
           { parent_folder_id: null },
           { parent_folder_id: { $exists: false } },
         ],
+        // Exclude workspace folders and live room folders
+        workspace_id: { $exists: false },
+        live_room_id: { $exists: false },
       })
-      .populate('files')
+      .populate({
+        path: 'files',
+        match: {
+          workspace_id: { $exists: false },
+          live_room_id: { $exists: false },
+        },
+      })
       .lean();
   }
 
