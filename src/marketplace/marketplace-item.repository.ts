@@ -62,8 +62,18 @@ export class MarketplaceItemRepository {
     if (!Types.ObjectId.isValid(id)) {
       return null;
     }
+    
+    // Build update object excluding undefined values
+    // This prevents overwriting existing fields with undefined
+    const updateData: any = {};
+    for (const [key, value] of Object.entries(data)) {
+      if (value !== undefined) {
+        updateData[key] = value;
+      }
+    }
+    
     return this.marketplaceItemModel
-      .findByIdAndUpdate(id, data, { new: true })
+      .findByIdAndUpdate(id, updateData, { new: true })
       .exec();
   }
 
