@@ -253,10 +253,11 @@ export class MarketplaceItemService {
     userId?: string,
   ): Promise<{ items: MarketplaceItemResponseDto[]; total: number }> {
     try {
-      const result = await this.repo.findAll(page, limit, type);
+      // Fetch all items without pagination first to sort by priority
+      const result = await this.repo.findAll(1, 999999, type); // Fetch all items
       
-      // Sort items with priority listing first
-      const itemsWithCreators = await Promise.all(
+      // Enrich items with seller info and priority status
+      const itemsWithPriority = await Promise.all(
         result.items.map(async (item) => {
           const responseDto = await this.toResponseDto(item, userId);
           
@@ -271,19 +272,27 @@ export class MarketplaceItemService {
           return {
             ...responseDto,
             seller_priority_listing: sellerLevel === 2, // Level 2 = PREMIUM
+            sellerLevel: sellerLevel,
           };
         }),
       );
 
       // Sort: Premium sellers (priority_listing=true) first, then others
-      const sortedItems = itemsWithCreators.sort((a, b) => {
+      const sortedItems = itemsWithPriority.sort((a, b) => {
+        // Premium items first
         if (a.seller_priority_listing && !b.seller_priority_listing) return -1;
         if (!a.seller_priority_listing && b.seller_priority_listing) return 1;
+        // If same priority level, maintain original order
         return 0;
       });
 
+      // Apply pagination after sorting
+      const startIndex = (page - 1) * limit;
+      const endIndex = startIndex + limit;
+      const paginatedItems = sortedItems.slice(startIndex, endIndex);
+
       return {
-        items: sortedItems as any,
+        items: paginatedItems as any,
         total: result.total
       };
     } catch (error) {
@@ -373,7 +382,7 @@ export class MarketplaceItemService {
     }
   }
 
-  async update(id: string, userId: string, dto: UpdateMarketplaceItemDto, files?: Express.Multer.File[]): Promise<MarketplaceItemResponseDto> {
+  async update(id: string, userId: string, dto: UpdateMarketplaceItemDto & { retained_images?: string }, files?: Express.Multer.File[]): Promise<MarketplaceItemResponseDto> {
     const item = await this.repo.findById(id);
     if (!item) {
       throw new AppException(ErrorCode.NOT_FOUND);
@@ -384,10 +393,27 @@ export class MarketplaceItemService {
       throw new AppException(ErrorCode.PERMISSION_DENIED);
     }
 
-    // Upload new images if provided
-    let imageUrls = item.images;
+    // Handle images: merge retained + new (max 5)
+    let imageUrls: string[] = [];
+    
+    // Parse retained images if provided
+    if (dto.retained_images) {
+      try {
+        imageUrls = JSON.parse(dto.retained_images);
+      } catch (e) {
+        console.error('Failed to parse retained_images:', e);
+      }
+    }
+    
+    // Add new uploaded images
     if (files && files.length > 0) {
-      imageUrls = await this.uploadImages(files);
+      const newImageUrls = await this.uploadImages(files);
+      imageUrls = imageUrls.concat(newImageUrls);
+    }
+    
+    // Limit to 5 images
+    if (imageUrls.length > 5) {
+      imageUrls = imageUrls.slice(0, 5);
     }
 
     // Chuyển đổi type_id từ string sang ObjectId
@@ -396,12 +422,29 @@ export class MarketplaceItemService {
       type_id: dto.type_id ? new Types.ObjectId(dto.type_id) : undefined,
       images: imageUrls,
     };
+    
+    // Remove retained_images from update payload
+    delete updatedDto.retained_images;
 
-    // Nếu type_id được update, cũng duplicate lại copied_data
-    if (dto.type_id && dto.type) {
+    // Luôn cập nhật lại copied_data nếu có type_id
+    if (item.type_id && item.type) {
+      const copiedData = await this.duplicateItemData(item.type, item.type_id.toString());
+      updatedDto.copied_data = copiedData;
+    }
+    
+    // Nếu type_id được thay đổi thành type_id mới
+    if (dto.type_id && dto.type && (!item.type_id || item.type_id.toString() !== dto.type_id)) {
       const copiedData = await this.duplicateItemData(dto.type, dto.type_id);
       updatedDto.copied_data = copiedData;
       updatedDto.ref_id = new Types.ObjectId(dto.type_id);
+    } else if (dto.type_id) {
+      updatedDto.ref_id = new Types.ObjectId(dto.type_id);
+    }
+    
+    // Nếu không có type_id ở item cũ và không set type_id mới → xóa copied_data
+    if (!item.type_id && !dto.type_id) {
+      delete updatedDto.copied_data;
+      delete updatedDto.ref_id;
     }
 
     const updatedItem = await this.repo.update(id, updatedDto);

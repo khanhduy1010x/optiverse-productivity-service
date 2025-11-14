@@ -105,7 +105,7 @@ export class MarketplaceItemController {
   async update(
     @Request() req,
     @Param('id') id: string,
-    @Body() updateDto: UpdateMarketplaceItemDto,
+    @Body() updateDto: UpdateMarketplaceItemDto & { retained_images?: string },
     @UploadedFiles() files: Express.Multer.File[],
   ): Promise<ApiResponseWrapper<MarketplaceItemResponseDto>> {
     const userId = req.userInfo?.userId;
