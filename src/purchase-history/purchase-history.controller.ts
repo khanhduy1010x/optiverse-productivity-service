@@ -24,6 +24,12 @@ export class PurchaseHistoryController {
   @Get('analytics')
   async getSalesAnalytics(@Req() req: Request): Promise<ApiResponse<any>> {
     const userId = (req as any).userInfo?.userId || (req as any).userInfo?._id;
+    
+    // Validate userId exists
+    if (!userId) {
+      throw new Error('User ID not found in authentication token');
+    }
+    
     const result = await this.purchaseHistoryService.getSalesAnalytics(userId);
     return new ApiResponse(result);
   }
