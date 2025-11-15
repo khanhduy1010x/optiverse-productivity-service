@@ -43,6 +43,8 @@ export enum ErrorCode {
   ACHIEVEMENT_INVALID_BOOLEAN_VALUE,
   ACHIEVEMENT_INVALID_VALUE,
   ACHIEVEMENT_MISSING_USER_ID,
+  // Achievement duplicate title error code
+  ACHIEVEMENT_DUPLICATE_TITLE,
   // User Inventory validation specific error codes
   FRAME_TITLE_REQUIRED,
   FRAME_TITLE_TOO_SHORT,
@@ -274,6 +276,11 @@ export const ErrorDetails = {
   [ErrorCode.ACHIEVEMENT_MISSING_USER_ID]: {
     code: 1112,
     message: 'Missing user id for evaluation',
+    httpStatus: HttpStatus.BAD_REQUEST,
+  },
+  [ErrorCode.ACHIEVEMENT_DUPLICATE_TITLE]: {
+    code: 1113,
+    message: 'Achievement title already exists',
     httpStatus: HttpStatus.BAD_REQUEST,
   },
   // User Inventory validation specific error details

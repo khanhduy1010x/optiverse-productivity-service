@@ -5,16 +5,19 @@ import { Operator, RuleCategory, ValueType, LogicOperator } from '../../achievem
 
 export class RuleDto {
   @ApiProperty({ enum: RuleCategory })
+  @IsOptional()
   @IsEnum(RuleCategory)
-  category: RuleCategory;
+  category?: RuleCategory;
 
   @ApiProperty()
+  @IsOptional()
   @IsString()
-  field: string;
+  field?: string;
 
   @ApiProperty({ enum: ValueType })
+  @IsOptional()
   @IsEnum(ValueType)
-  value_type: ValueType;
+  value_type?: ValueType;
 
   @ApiProperty({ required: false, description: 'Required for STRING/NUMBER types, optional for DATE/BOOLEAN/ENUM' })
   @IsOptional()
@@ -22,18 +25,21 @@ export class RuleDto {
   threshold?: number;
 
   @ApiProperty({ enum: Operator })
+  @IsOptional()
   @IsEnum(Operator)
-  operator: Operator;
+  operator?: Operator;
 
   @ApiProperty({  required: false, description: 'Giá trị filter, nếu là DATE/NUMBER sẽ parse từ string' })
+  @IsOptional()
   @IsString()
-  value: string;
+  value?: string;
 }
 
 export class CreateAchievementRequest {
   @ApiProperty()
+  @IsOptional()
   @IsString()
-  title: string;
+  title?: string;
 
   @ApiProperty({ required: false })
   @IsOptional()
@@ -55,7 +61,8 @@ export class CreateAchievementRequest {
   icon_url?: string;
 
   @ApiProperty({ type: [RuleDto], description: 'Array of rules or JSON string when using FormData' })
-  rules: RuleDto[] | string; // Cho phép string khi sử dụng FormData, validation sẽ được xử lý trong controller
+  @IsOptional()
+  rules?: RuleDto[] | string; // Cho phép string khi sử dụng FormData, validation sẽ được xử lý trong controller
 
   @ApiProperty({ enum: LogicOperator, required: false, default: LogicOperator.AND })
   @IsOptional()

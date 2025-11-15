@@ -30,6 +30,10 @@ export class AchievementRepository {
       .exec();
   }
 
+  async findByTitle(title: string): Promise<Achievement | null> {
+    return this.achievementModel.findOne({ title: title.trim() }).exec();
+  }
+
   async create(dto: CreateAchievementRequest): Promise<Achievement> {
     const created = new this.achievementModel(dto as any);
     return created.save();

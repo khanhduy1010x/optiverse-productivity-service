@@ -68,7 +68,18 @@ export class AchievementController {
     // value validation by type
     const val = rule.value;
     if (rule.value_type === ValueType.DATE) {
-      if (typeof val !== 'string' || Number.isNaN(Date.parse(val))) {
+      if (typeof val !== 'string') {
+        throw new AppException(ErrorCode.ACHIEVEMENT_INVALID_DATE_VALUE);
+      }
+      // Accept:
+      // 1. ISO dates: "2025-01-15"
+      // 2. Relative dates: "1D", "7D", "30D", "24H"
+      // 3. Date ranges: "2025-01-15 to 2025-01-20" or "2025-11-22 to 2025-11-29"
+      const isValidIsoDate = !Number.isNaN(Date.parse(val));
+      const isValidRelativeDate = /^\d+[DdHh]$/.test(val); // Matches "1D", "7D", "24H"
+      const isValidDateRange = /^\d{4}-\d{2}-\d{2}\s+to\s+\d{4}-\d{2}-\d{2}$/.test(val); // Matches "YYYY-MM-DD to YYYY-MM-DD"
+      
+      if (!isValidIsoDate && !isValidRelativeDate && !isValidDateRange) {
         throw new AppException(ErrorCode.ACHIEVEMENT_INVALID_DATE_VALUE);
       }
     } 
@@ -94,6 +105,17 @@ export class AchievementController {
     rulesArr.forEach((r) => this.validateRule(r));
   }
 
+  private async validateCreateDtoWithDuplicate(dto: CreateAchievementRequest) {
+    this.validateCreateDto(dto);
+    // Check for duplicate title
+    if (dto.title) {
+      const existing = await this.achievementRepository.findByTitle(dto.title);
+      if (existing) {
+        throw new AppException(ErrorCode.ACHIEVEMENT_DUPLICATE_TITLE);
+      }
+    }
+  }
+
   private validateUpdateDto(dto: UpdateAchievementRequest) {
     if (dto.title !== undefined) {
       if (typeof dto.title !== 'string' || dto.title.trim().length === 0) {
@@ -106,6 +128,17 @@ export class AchievementController {
     if (dto.rules !== undefined) {
       const rulesArr = this.parseRulesInput(dto.rules as any);
       rulesArr.forEach((r) => this.validateRule(r));
+    }
+  }
+
+  private async validateUpdateDtoWithDuplicate(id: string, dto: UpdateAchievementRequest) {
+    this.validateUpdateDto(dto);
+    // Check for duplicate title only if title is being updated
+    if (dto.title) {
+      const existing = await this.achievementRepository.findByTitle(dto.title);
+      if (existing && existing._id.toString() !== id) {
+        throw new AppException(ErrorCode.ACHIEVEMENT_DUPLICATE_TITLE);
+      }
     }
   }
 
@@ -178,6 +211,21 @@ export class AchievementController {
     @UploadedFiles() files: { file?: Express.Multer.File[]; icon_file?: Express.Multer.File[] },
     @Body() createAchievementDto: CreateAchievementRequest,
   ): Promise<ApiResponseWrapper<AchievementResponse>> {
+    console.log('=== CREATE ACHIEVEMENT - Frontend Request ===');
+    console.log('Raw DTO from frontend:', JSON.stringify(createAchievementDto, null, 2));
+    console.log('Rules type:', typeof createAchievementDto.rules);
+    console.log('Rules value:', createAchievementDto.rules);
+    if (typeof createAchievementDto.rules === 'string') {
+      console.log('Rules is string, parsing...');
+      try {
+        const parsed = JSON.parse(createAchievementDto.rules);
+        console.log('Parsed rules:', JSON.stringify(parsed, null, 2));
+      } catch (e) {
+        console.error('Failed to parse rules:', e);
+      }
+    }
+    console.log('Files received:', files ? Object.keys(files) : 'none');
+    
     let iconUrl: string | undefined = undefined;
     const uploadedFile = files?.icon_file?.[0] || files?.file?.[0];
     if (uploadedFile) {
@@ -189,8 +237,8 @@ export class AchievementController {
     if (typeof createAchievementDto.rules === 'string') {
       parsedDto.rules = this.parseRulesInput(createAchievementDto.rules);
     }
-    // Validate full dto
-    this.validateCreateDto(parsedDto as any);
+    // Validate full dto including duplicate title check
+    await this.validateCreateDtoWithDuplicate(parsedDto as any);
 
     const achievement = await this.achievementRepository.create({
       ...parsedDto,
@@ -227,6 +275,22 @@ export class AchievementController {
     @UploadedFiles() files: { file?: Express.Multer.File[]; icon_file?: Express.Multer.File[] },
     @Body() updateAchievementDto: UpdateAchievementRequest,
   ): Promise<ApiResponseWrapper<AchievementResponse>> {
+    console.log('=== UPDATE ACHIEVEMENT - Frontend Request ===');
+    console.log('Achievement ID:', id);
+    console.log('Raw DTO from frontend:', JSON.stringify(updateAchievementDto, null, 2));
+    console.log('Rules type:', typeof updateAchievementDto.rules);
+    console.log('Rules value:', updateAchievementDto.rules);
+    if (typeof updateAchievementDto.rules === 'string') {
+      console.log('Rules is string, parsing...');
+      try {
+        const parsed = JSON.parse(updateAchievementDto.rules);
+        console.log('Parsed rules:', JSON.stringify(parsed, null, 2));
+      } catch (e) {
+        console.error('Failed to parse rules:', e);
+      }
+    }
+    console.log('Files received:', files ? Object.keys(files) : 'none');
+    
     let iconUrl: string | undefined = undefined;
     const uploadedFile = files?.icon_file?.[0] || files?.file?.[0];
     if (uploadedFile) {
@@ -242,8 +306,8 @@ export class AchievementController {
     if (typeof updateAchievementDto.rules === 'string') {
       parsedDto.rules = this.parseRulesInput(updateAchievementDto.rules);
     }
-    // Validate update dto (only provided fields)
-    this.validateUpdateDto(parsedDto as any);
+    // Validate update dto (only provided fields) including duplicate title check
+    await this.validateUpdateDtoWithDuplicate(id, parsedDto as any);
 
     const achievement = await this.achievementRepository.update(id, {
       ...parsedDto,
