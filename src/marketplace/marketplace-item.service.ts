@@ -483,6 +483,31 @@ export class MarketplaceItemService {
     };
   }
 
+  async findPaginated(
+    page: number = 1,
+    limit: number = 10,
+    search?: string,
+    price?: string,
+    popularity?: string,
+    sort?: string,
+    userId?: string,
+  ): Promise<{ items: MarketplaceItemResponseDto[]; total: number; totalPages: number }> {
+    try {
+      const result = await this.repo.findPaginated(page, limit, search, price, popularity, sort);
+      const items = await Promise.all(result.items.map(item => this.toResponseDto(item, userId)));
+      const totalPages = Math.ceil(result.total / limit);
+      
+      return {
+        items,
+        total: result.total,
+        totalPages,
+      };
+    } catch (error) {
+      console.error('Error in findPaginated:', error);
+      throw new AppException(ErrorCode.SERVER_ERROR);
+    }
+  }
+
   /**
    * Purchase marketplace item - Mua flashcard từ marketplace
    * 1. Kiểm tra membership benefits

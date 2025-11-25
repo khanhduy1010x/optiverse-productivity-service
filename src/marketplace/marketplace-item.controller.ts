@@ -27,6 +27,21 @@ import { ErrorCode } from 'src/common/exceptions/error-code.enum';
 export class MarketplaceItemController {
   constructor(private readonly marketplaceItemService: MarketplaceItemService) {}
 
+  @Get('paginated')
+  async getPaginatedItems(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('search') search?: string,
+    @Query('price') price?: string,
+    @Query('popularity') popularity?: string,
+    @Query('sort') sort?: string,
+    @Request() req?: any,
+  ): Promise<ApiResponseWrapper<{ items: MarketplaceItemResponseDto[]; total: number; totalPages: number }>> {
+    const userId = req?.userInfo?.userId;
+    const result = await this.marketplaceItemService.findPaginated(+page, +limit, search, price, popularity, sort, userId);
+    return new ApiResponseWrapper<{ items: MarketplaceItemResponseDto[]; total: number; totalPages: number }>(result);
+  }
+
   @Get()
   async findAll(
     @Query('page') page: number = 1,
