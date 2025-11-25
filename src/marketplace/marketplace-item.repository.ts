@@ -147,4 +147,107 @@ export class MarketplaceItemRepository {
       },
     }).exec();
   }
+
+  async findPaginated(
+    page: number = 1,
+    limit: number = 10,
+    search?: string,
+    price?: string,
+    popularity?: string,
+    sort?: string,
+  ): Promise<{ items: MarketplaceItem[]; total: number }> {
+    try {
+      const query: any = {};
+
+      // Search filter - tìm kiếm trong title và description
+      if (search) {
+        query.$or = [
+          { title: { $regex: search, $options: 'i' } },
+          { description: { $regex: search, $options: 'i' } },
+        ];
+      }
+
+      // Price filter - hỗ trợ: min-max, min, max, 0 (free)
+      if (price) {
+        if (price === '0') {
+          // Free items only
+          query.price = 0;
+        } else {
+          const priceRanges = price.split('-');
+          if (priceRanges.length === 2) {
+            const [min, max] = priceRanges;
+            const minPrice = parseInt(min, 10);
+            const maxPrice = parseInt(max, 10);
+            if (!isNaN(minPrice) && !isNaN(maxPrice)) {
+              query.price = { $gte: minPrice, $lte: maxPrice };
+            }
+          } else if (priceRanges.length === 1) {
+            const singlePrice = parseInt(priceRanges[0], 10);
+            if (!isNaN(singlePrice)) {
+              query.price = { $gte: singlePrice };
+            }
+          }
+        }
+      }
+
+      const skip = (page - 1) * limit;
+      let query_builder = this.marketplaceItemModel
+        .find(query)
+        .skip(skip)
+        .limit(limit);
+
+      // Apply sorting
+      let sortOption: any = { createdAt: -1 }; // Default: newest
+      if (sort) {
+        switch (sort) {
+          case 'newest':
+            sortOption = { createdAt: -1 };
+            break;
+          case 'oldest':
+            sortOption = { createdAt: 1 };
+            break;
+          case 'price-high':
+            sortOption = { price: -1 };
+            break;
+          case 'price-low':
+            sortOption = { price: 1 };
+            break;
+          default:
+            sortOption = { createdAt: -1 };
+        }
+      }
+      query_builder = query_builder.sort(sortOption);
+
+      // Popularity filter - lọc theo số lần mua
+      if (popularity) {
+        switch (popularity) {
+          case 'top-100':
+            // Top 100 most purchased items
+            query_builder = query_builder.limit(100);
+            break;
+          case 'top-1000':
+            // Items with >= 1000 purchases
+            query.$expr = { $gte: ['$purchase_count', 1000] };
+            break;
+          case 'top-500':
+            // Items with >= 500 purchases
+            query.$expr = { $gte: ['$purchase_count', 500] };
+            break;
+          default:
+            // 'all' - no popularity filter
+            break;
+        }
+      }
+
+      const [items, total] = await Promise.all([
+        query_builder.exec(),
+        this.marketplaceItemModel.countDocuments(query).exec(),
+      ]);
+
+      return { items, total };
+    } catch (error) {
+      console.error('Error in marketplace repository findPaginated:', error);
+      throw error;
+    }
+  }
 }
