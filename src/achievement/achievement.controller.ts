@@ -59,8 +59,8 @@ export class AchievementController {
     if (!this.isEnumValue(Operator, rule?.operator)) {
       throw new AppException(ErrorCode.ACHIEVEMENT_INVALID_RULE_OPERATOR);
     }
-    // threshold validation for STRING/NUMBER
-    if (rule.value_type === ValueType.STRING || rule.value_type === ValueType.NUMBER) {
+    // threshold validation for STRING/NUMBER/ENUM
+    if (rule.value_type === ValueType.STRING || rule.value_type === ValueType.NUMBER || rule.value_type === ValueType.ENUM) {
       if (rule.threshold === undefined || typeof rule.threshold !== 'number' || Number.isNaN(rule.threshold)) {
         throw new AppException(ErrorCode.ACHIEVEMENT_MISSING_THRESHOLD);
       }
