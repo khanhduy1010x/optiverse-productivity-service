@@ -74,10 +74,13 @@ export class MarketplaceItemController {
     @Param('creatorId') creatorId: string,
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,
+    @Query('search') search?: string,
+    @Query('price') price?: string,
+    @Query('sort') sort?: string,
     @Request() req?: any,
-  ): Promise<ApiResponseWrapper<{ items: MarketplaceItemResponseDto[]; total: number }>> {
+  ): Promise<ApiResponseWrapper<{ items: MarketplaceItemResponseDto[]; total: number; totalPages: number }>> {
     const userId = req?.userInfo?.userId;
-    const result = await this.marketplaceItemService.findByCreatorId(creatorId, page, limit, userId);
+    const result = await this.marketplaceItemService.findPaginatedByCreator(creatorId, +page, +limit, search, price, sort, userId);
     return new ApiResponseWrapper(result);
   }
 

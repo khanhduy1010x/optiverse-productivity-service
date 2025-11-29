@@ -250,4 +250,81 @@ export class MarketplaceItemRepository {
       throw error;
     }
   }
+
+  async findPaginatedByCreator(
+    creatorId: string,
+    page: number = 1,
+    limit: number = 10,
+    search?: string,
+    price?: string,
+    sort?: string,
+  ): Promise<{ items: MarketplaceItem[]; total: number }> {
+    try {
+      const query: any = {
+        creator_id: new Types.ObjectId(creatorId),
+      };
+
+      // Search filter
+      if (search) {
+        query.$or = [
+          { title: { $regex: search, $options: 'i' } },
+          { description: { $regex: search, $options: 'i' } },
+        ];
+      }
+
+      // Price filter
+      if (price && price !== '0') {
+        const priceRanges = price.split('-');
+        if (priceRanges.length === 2) {
+          const [min, max] = priceRanges;
+          const minPrice = parseInt(min, 10);
+          const maxPrice = parseInt(max, 10);
+          if (!isNaN(minPrice) && !isNaN(maxPrice)) {
+            query.price = { $gte: minPrice, $lte: maxPrice };
+          }
+        }
+      }
+
+      const skip = (page - 1) * limit;
+
+      // Apply sorting
+      let sortOption: any = { createdAt: -1 }; // Default: newest
+      if (sort) {
+        switch (sort) {
+          case 'newest':
+            sortOption = { createdAt: -1 };
+            break;
+          case 'oldest':
+            sortOption = { createdAt: 1 };
+            break;
+          case 'price-asc':
+            sortOption = { price: 1 };
+            break;
+          case 'price-desc':
+            sortOption = { price: -1 };
+            break;
+          case 'popular':
+            sortOption = { purchase_count: -1 };
+            break;
+          default:
+            sortOption = { createdAt: -1 };
+        }
+      }
+
+      const [items, total] = await Promise.all([
+        this.marketplaceItemModel
+          .find(query)
+          .sort(sortOption)
+          .skip(skip)
+          .limit(limit)
+          .exec(),
+        this.marketplaceItemModel.countDocuments(query).exec(),
+      ]);
+
+      return { items, total };
+    } catch (error) {
+      console.error('Error in marketplace repository findPaginatedByCreator:', error);
+      throw error;
+    }
+  }
 }
