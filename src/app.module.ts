@@ -31,6 +31,7 @@ import { UserInventoryModule } from './user-inventory/user-inventory.module';
 import { MarketplaceModule } from './marketplace/marketplace.module';
 import { PurchaseHistoryModule } from './purchase-history/purchase-history.module';
 import { MarketplaceFavoriteModule } from './marketplace-favorites/marketplace-favorite.module';
+import { MarketplaceFollowerModule } from './marketplace-followers/marketplace-follower.module';
 import { LiveRoomModule } from './focus-room/live-room.module';
 import { WebhookModule } from './focus-room/webhook.module';
 import { SpeechModule } from './speech/speech.module';
@@ -74,6 +75,7 @@ import { LeaderboardModule } from './leaderboard/leaderboard.module';
     PurchaseHistoryModule,
     MarketplaceModule,
     MarketplaceFavoriteModule,
+    MarketplaceFollowerModule,
     LiveRoomModule,
     SpeechModule,
     PaymentModule,

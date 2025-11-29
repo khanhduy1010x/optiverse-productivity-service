@@ -509,6 +509,34 @@ export class MarketplaceItemService {
   }
 
   /**
+   * Tìm marketplace items của creator với filter và pagination
+   */
+  async findPaginatedByCreator(
+    creatorId: string,
+    page: number = 1,
+    limit: number = 10,
+    search?: string,
+    price?: string,
+    sort?: string,
+    userId?: string,
+  ): Promise<{ items: MarketplaceItemResponseDto[]; total: number; totalPages: number }> {
+    try {
+      const result = await this.repo.findPaginatedByCreator(creatorId, page, limit, search, price, sort);
+      const items = await Promise.all(result.items.map(item => this.toResponseDto(item, userId)));
+      const totalPages = Math.ceil(result.total / limit);
+      
+      return {
+        items,
+        total: result.total,
+        totalPages,
+      };
+    } catch (error) {
+      console.error('Error in findPaginatedByCreator:', error);
+      throw new AppException(ErrorCode.SERVER_ERROR);
+    }
+  }
+
+  /**
    * Purchase marketplace item - Mua flashcard từ marketplace
    * 1. Kiểm tra membership benefits
    * 2. Kiểm tra đã mua rồi chưa
