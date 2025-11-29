@@ -24,5 +24,5 @@ export class TaskQuota {
 
 export const TaskQuotaSchema = SchemaFactory.createForClass(TaskQuota);
 
-// Create compound index for efficient queries
-TaskQuotaSchema.index({ user_id: 1}, { unique: true });
+// Create compound unique index for user_id + quota_date (one quota record per user per day)
+TaskQuotaSchema.index({ user_id: 1, quota_date: 1 }, { unique: true });
