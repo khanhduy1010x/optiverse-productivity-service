@@ -136,11 +136,17 @@ export class LeaderboardSchedulerService {
       );
 
       // Tính thời gian hết hạn cache
-      const expiresAt = new Date();
+      let expiresAt = new Date();
       if (timePeriod === 'weekly') {
         expiresAt.setDate(expiresAt.getDate() + 7); // Cache 7 ngày cho weekly
       } else {
-        expiresAt.setDate(expiresAt.getDate() + 30); // Cache 30 ngày cho monthly
+        // ✅ Tính đến cuối tháng hiện tại (xử lý đúng tháng 28/29/30/31 ngày)
+        const currentMonth = expiresAt.getMonth();
+        const currentYear = expiresAt.getFullYear();
+        
+        // Cuối tháng = Ngày 1 tháng sau - 1 giây
+        const nextMonth = new Date(currentYear, currentMonth + 1, 1, 0, 0, 0, 0);
+        expiresAt = new Date(nextMonth.getTime() - 1000);
       }
 
       // Upsert cache
