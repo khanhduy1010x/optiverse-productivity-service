@@ -6,6 +6,8 @@ import { UpdateReviewSessionRequest } from './dto/request/UpdateReviewSessionReq
 import { ReviewSessionResponse } from './dto/response/ReviewSessionResponse.dto';
 import { ReviewRequestDto } from './dto/request/ReviewRequest.dto';
 import { Types } from 'mongoose';
+import { AppException } from 'src/common/exceptions/app.exception';
+import { ErrorCode } from 'src/common/exceptions/error-code.enum';
 @Injectable()
 export class ReviewSessionService {
   constructor(private readonly reviewSessionRepository: ReviewSessionRepository) {}
@@ -32,12 +34,29 @@ export class ReviewSessionService {
     userId: string,
     dto: ReviewRequestDto,
   ): Promise<ReviewSessionResponse | null> {
+    console.log('Review flashcard called with:', { userId, dto });
+    
+    // Validate input
+    if (!dto.flashcard_id || dto.quality === undefined || dto.quality === null) {
+      throw new AppException(ErrorCode.INVALID_CODE);
+    }
+
+    // Validate ObjectId format
+    if (!Types.ObjectId.isValid(dto.flashcard_id)) {
+      throw new AppException(ErrorCode.INVALID_OBJECT_ID);
+    }
+
+    if (!Types.ObjectId.isValid(userId)) {
+      throw new AppException(ErrorCode.INVALID_OBJECT_ID);
+    }
+    
     const existing = await this.reviewSessionRepository.findByUserAndFlashcard(
       userId,
       dto.flashcard_id,
     );
     const now = new Date();
-
+    console.log('Existing session:', existing);
+    console.log('DTO quality:', dto.quality);
     const session = existing ?? {
       flashcard_id: new Types.ObjectId(dto.flashcard_id),
       user_id: new Types.ObjectId(userId),
