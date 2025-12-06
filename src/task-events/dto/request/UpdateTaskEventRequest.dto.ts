@@ -42,6 +42,7 @@ export class UpdateTaskEventRequest {
   repeat_end_type?: string;
 
   @IsOptional()
+  @Transform(({ value }) => (value ? new Date(value) : undefined))
   repeat_end_date?: Date;
 
   @IsOptional()

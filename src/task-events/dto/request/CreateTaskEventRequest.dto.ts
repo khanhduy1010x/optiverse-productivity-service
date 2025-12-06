@@ -35,8 +35,9 @@ export class CreateTaskEventRequest {
   @IsBoolean()
   all_day?: boolean;
 
+  @IsOptional()
   @IsEnum(['none', 'daily', 'weekly', 'monthly', 'yearly', 'weekday', 'custom'])
-  repeat_type: string;
+  repeat_type?: string;
 
   @IsOptional()
   @IsNumber()
@@ -51,6 +52,7 @@ export class CreateTaskEventRequest {
   repeat_end_type?: string;
 
   @IsOptional()
+  @Transform(({ value }) => (value ? new Date(value) : undefined))
   repeat_end_date?: Date;
 
   @IsOptional()
