@@ -1,6 +1,13 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, IsEnum } from 'class-validator';
 import { Types } from 'mongoose';
+
+export enum FlashcardFormat {
+  QA = 'qa',                    // Question & Answer
+  VOCABULARY = 'vocabulary',    // Word & Definition
+  TRUE_FALSE = 'true_false',    // True/False Statements
+  FILL_BLANK = 'fill_blank',    // Fill in the Blank
+}
 
 export class GenerateFlashcardsFromPdfRequest {
   @ApiProperty({ type: 'string', format: 'binary', description: 'PDF file to extract text from' })
@@ -36,4 +43,14 @@ export class GenerateFlashcardsFromPdfRequest {
   })
   @IsOptional()
   numFlashcards?: number;
+
+  @ApiProperty({
+    enum: FlashcardFormat,
+    example: FlashcardFormat.QA,
+    description: 'Format of flashcards to generate. Options: qa (Question & Answer), vocabulary (Word & Definition), true_false (True/False), fill_blank (Fill in the Blank)',
+    required: false,
+  })
+  @IsOptional()
+  @IsEnum(FlashcardFormat)
+  format?: FlashcardFormat;
 }

@@ -7,7 +7,7 @@ import { UpdateFlashcardDeckRequest } from './dto/request/UpdateFlashcardDeckReq
 import { FlashcardDeckResponse } from './dto/response/FlashcardDeckResponse.dto';
 import { FlashcardRepository } from '../flashcards/flashcard.repository';
 import { PdfProcessingService } from './services/pdf-processing.service';
-import { GoogleGenAiService } from './services/google-genai.service';
+import { GoogleGenAiService, FlashcardFormat } from './services/google-genai.service';
 import { GeneratedFlashcardsResponse } from './dto/response/GeneratedFlashcardsResponse.dto';
 
 @Injectable()
@@ -118,6 +118,7 @@ export class FlashcardDeckService {
    * @param description Optional description for the deck
    * @param workspaceId Optional workspace ID
    * @param numFlashcards Number of flashcards to generate
+   * @param format Format of flashcards to generate (default: qa)
    * @returns The created deck and generated flashcards
    */
   async generateFlashcardsFromPdf(
@@ -127,6 +128,7 @@ export class FlashcardDeckService {
     description?: string,
     workspaceId?: string,
     numFlashcards: number = 10,
+    format: FlashcardFormat = FlashcardFormat.QA,
   ): Promise<GeneratedFlashcardsResponse> {
     // Step 1: Extract text from PDF
     const pdfText = await this.pdfProcessingService.extractTextFromPdf(pdfBuffer);
@@ -136,6 +138,7 @@ export class FlashcardDeckService {
     const generatedFlashcards = await this.googleGenAiService.generateFlashcardsFromText(
       cleanedText,
       numFlashcards,
+      format,
     );
 
     // Step 3: Create a new flashcard deck

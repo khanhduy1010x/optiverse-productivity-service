@@ -17,7 +17,7 @@ import { ApiResponse } from 'src/common/api-response';
 import { FlashcardDeckResponse } from './dto/response/FlashcardDeckResponse.dto';
 import { CreateFlashcardDeckRequest } from './dto/request/CreateFlashcardDeckRequest.dto';
 import { UpdateFlashcardDeckRequest } from './dto/request/UpdateFlashcardDeckRequest.dto';
-import { GenerateFlashcardsFromPdfRequest } from './dto/request/GenerateFlashcardsFromPdfRequest.dto';
+import { GenerateFlashcardsFromPdfRequest, FlashcardFormat } from './dto/request/GenerateFlashcardsFromPdfRequest.dto';
 import { GeneratedFlashcardsResponse } from './dto/response/GeneratedFlashcardsResponse.dto';
 import { FlashcardDeck } from './flashcard-deck.schema';
 import { ApiBearerAuth, ApiBody, ApiParam, ApiConsumes } from '@nestjs/swagger';
@@ -167,6 +167,12 @@ export class FlashcardDeckController {
           example: 10,
           description: 'Number of flashcards to generate (default: 10)',
         },
+        format: {
+          type: 'string',
+          enum: ['qa', 'vocabulary', 'true_false', 'fill_blank'],
+          example: 'qa',
+          description: 'Format of flashcards to generate: qa (Question & Answer), vocabulary (Word & Definition), true_false (True/False), fill_blank (Fill in the Blank). Default: qa',
+        },
       },
       required: ['file', 'deckTitle'],
     },
@@ -199,6 +205,18 @@ export class FlashcardDeckController {
       throw new BadRequestException('numFlashcards must be between 1 and 100');
     }
 
+    // Validate and parse format
+    let format = FlashcardFormat.QA;
+    if (body.format) {
+      const validFormats = Object.values(FlashcardFormat);
+      if (!validFormats.includes(body.format)) {
+        throw new BadRequestException(
+          `Invalid format. Allowed values: ${validFormats.join(', ')}`,
+        );
+      }
+      format = body.format;
+    }
+
     const result = await this.flashcardDeckService.generateFlashcardsFromPdf(
       file.buffer,
       body.deckTitle,
@@ -206,6 +224,7 @@ export class FlashcardDeckController {
       body.description,
       body.workspace_id,
       numFlashcards,
+      format,
     );
 
     return new ApiResponse<GeneratedFlashcardsResponse>(result);
