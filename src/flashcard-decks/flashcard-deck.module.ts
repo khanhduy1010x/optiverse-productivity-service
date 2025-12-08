@@ -6,6 +6,8 @@ import { FlashcardDeckService } from './flashcard-deck.service';
 import { FlashcardDeckRepository } from './flashcard-deck.repository';
 import { FlashcardRepository } from '../flashcards/flashcard.repository';
 import { FlashcardModule } from '../flashcards/flashcard.module';
+import { PdfProcessingService } from './services/pdf-processing.service';
+import { GoogleGenAiService } from './services/google-genai.service';
 
 @Module({
   imports: [
@@ -13,7 +15,7 @@ import { FlashcardModule } from '../flashcards/flashcard.module';
     FlashcardModule,
   ],
   controllers: [FlashcardDeckController],
-  providers: [FlashcardDeckService, FlashcardDeckRepository],
+  providers: [FlashcardDeckService, FlashcardDeckRepository, PdfProcessingService, GoogleGenAiService],
   exports: [FlashcardDeckService],
 })
 export class FlashcardDeckModule {}
