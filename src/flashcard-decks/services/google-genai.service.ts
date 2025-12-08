@@ -104,6 +104,12 @@ ${truncatedText}`;
       case FlashcardFormat.VOCABULARY:
         return `Format: Vocabulary (Word & Definition)
 Create vocabulary flashcards with a word/term on the front and its definition on the back.
+Only include key terms or concepts that are central to the topic of the document, avoiding common words, filler words, and terms that are not critical to understanding the subject matter.
+
+Focus on:
+1. Terms that are technical, scientific, or specialized.
+2. Important definitions that help explain the core ideas of the document.
+3. Avoid words that are too general or unrelated to the main topic.
 
 Format your response as a JSON array with objects containing "front" (the word/term) and "back" (the definition) properties. Return ONLY valid JSON, no additional text.
 
@@ -126,6 +132,12 @@ Example format:
       case FlashcardFormat.TRUE_FALSE:
         return `Format: True/False Statements
 Create true/false flashcards with statements on the front and the answer (true or false) on the back.
+Only include statements that are directly related to the main topic of the document. Avoid general statements, common knowledge, or irrelevant facts.
+
+Focus on:
+1. Key concepts, theories, or facts that are essential to understanding the subject matter.
+2. Statements that test the understanding of the core ideas, not trivial details.
+3. Avoid broad or general statements that do not directly contribute to the main topic of the document.
 
 Format your response as a JSON array with objects containing "front" (the statement) and "back" (either "True" or "False") properties. Return ONLY valid JSON, no additional text.
 
@@ -148,6 +160,12 @@ Example format:
       case FlashcardFormat.FILL_BLANK:
         return `Format: Fill in the Blank
 Create fill-in-the-blank flashcards with sentences containing a blank (represented by ___) on the front and the answer on the back.
+Only include sentences that are directly related to the main topic of the document. Avoid trivial or irrelevant sentences that do not contribute to understanding the core content.
+
+Focus on:
+1. Key concepts, theories, or terms that are central to the subject matter.
+2. Sentences that test the understanding of important definitions, processes, or facts.
+3. Avoid overly simplistic or irrelevant sentences that do not add value to the learning process.
 
 Format your response as a JSON array with objects containing "front" (the sentence with a blank) and "back" (the missing word/phrase) properties. Return ONLY valid JSON, no additional text.
 
@@ -171,6 +189,12 @@ Example format:
       default:
         return `Format: Question & Answer
 Create question and answer flashcards with clear questions on the front and concise answers on the back.
+Only include questions that are directly related to the main topic of the document. Avoid overly general, trivial, or irrelevant questions that do not contribute to understanding the core content.
+
+Focus on:
+1. Key concepts, definitions, or theories that are essential to understanding the subject matter.
+2. Clear and specific questions that test comprehension of important facts or processes.
+3. Concise and accurate answers that directly address the question without unnecessary details.
 
 Format your response as a JSON array with objects containing "front" (the question) and "back" (the answer) properties. Return ONLY valid JSON, no additional text.
 
