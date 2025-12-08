@@ -7,14 +7,20 @@ import {
   Param,
   Request,
   Patch,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { FlashcardDeckService } from './flashcard-deck.service';
 import { ApiResponse } from 'src/common/api-response';
 import { FlashcardDeckResponse } from './dto/response/FlashcardDeckResponse.dto';
 import { CreateFlashcardDeckRequest } from './dto/request/CreateFlashcardDeckRequest.dto';
 import { UpdateFlashcardDeckRequest } from './dto/request/UpdateFlashcardDeckRequest.dto';
+import { GenerateFlashcardsFromPdfRequest } from './dto/request/GenerateFlashcardsFromPdfRequest.dto';
+import { GeneratedFlashcardsResponse } from './dto/response/GeneratedFlashcardsResponse.dto';
 import { FlashcardDeck } from './flashcard-deck.schema';
-import { ApiBearerAuth, ApiBody, ApiParam } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiParam, ApiConsumes } from '@nestjs/swagger';
 import { UserDto } from 'src/user-dto/user.dto';
 
 @ApiBearerAuth('access-token')
@@ -130,5 +136,78 @@ export class FlashcardDeckController {
   async deleteFlashcardDeck(@Param('id') flashcardDeckId: string): Promise<ApiResponse<void>> {
     await this.flashcardDeckService.deleteFlashcardDeck(flashcardDeckId);
     return new ApiResponse<void>(null);
+  }
+
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: 'PDF file to extract text from',
+        },
+        deckTitle: {
+          type: 'string',
+          example: 'My Flashcard Deck',
+          description: 'Title for the new flashcard deck',
+        },
+        description: {
+          type: 'string',
+          example: 'Description of the deck',
+          description: 'Optional description for the deck',
+        },
+        workspace_id: {
+          type: 'string',
+          description: 'Optional workspace ID',
+        },
+        numFlashcards: {
+          type: 'number',
+          example: 10,
+          description: 'Number of flashcards to generate (default: 10)',
+        },
+      },
+      required: ['file', 'deckTitle'],
+    },
+  })
+  @Post('generate-from-pdf')
+  @UseInterceptors(FileInterceptor('file'))
+  async generateFlashcardsFromPdf(
+    @Request() req,
+    @UploadedFile() file: any,
+    @Body() body: any,
+  ): Promise<ApiResponse<GeneratedFlashcardsResponse>> {
+    const user = req.userInfo as UserDto;
+
+    // Validate file
+    if (!file) {
+      throw new BadRequestException('No file uploaded');
+    }
+
+    if (file.mimetype !== 'application/pdf') {
+      throw new BadRequestException('File must be a PDF');
+    }
+
+    if (!body.deckTitle) {
+      throw new BadRequestException('deckTitle is required');
+    }
+
+    const numFlashcards = body.numFlashcards ? parseInt(body.numFlashcards, 10) : 10;
+
+    if (numFlashcards < 1 || numFlashcards > 100) {
+      throw new BadRequestException('numFlashcards must be between 1 and 100');
+    }
+
+    const result = await this.flashcardDeckService.generateFlashcardsFromPdf(
+      file.buffer,
+      body.deckTitle,
+      user.userId,
+      body.description,
+      body.workspace_id,
+      numFlashcards,
+    );
+
+    return new ApiResponse<GeneratedFlashcardsResponse>(result);
   }
 }
